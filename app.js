@@ -135,31 +135,64 @@ async function createInitialProfile(userId, username) {
 }
 
 async function loadUserProfile(userId) {
+    console.log("--- START LOAD PROFILE ---");
     const loader = document.getElementById('loader-profile');
-    loader.classList.remove('hidden');
+    if(loader) loader.classList.remove('hidden');
     
     try {
-        const { data, error } = await sb.from('xsoc_profiles').select('*').eq('id', userId).single();
-        if (error && error.code !== 'PGRST116') throw error;
-        
-        if (!data) {
-            await createInitialProfile(userId, 'User'+Math.floor(Math.random()*1000));
-            return loadUserProfile(userId);
+        // 1. Запрос к базе
+        console.log("Fetching profile for ID:", userId);
+        const { data, error } = await sb
+            .from('xsoc_profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+        // 2. Проверка ошибок запроса
+        if (error) {
+            console.error("DB Error fetching profile:", error);
+            // Если ошибка "no rows found" (PGRST116), значит профиля нет. Создаем его.
+            if (error.code === 'PGRST116') {
+                console.warn("Profile not found. Creating new one...");
+                await createInitialProfile(userId, 'User_' + Math.floor(Math.random()*1000));
+                return loadUserProfile(userId); // Рекурсивный вызов для повторной попытки
+            } else {
+                throw error; // Другая ошибка (RLS, сеть и т.д.)
+            }
         }
 
+        // 3. Проверка данных
+        if (!data) {
+            console.error("Data is null/undefined despite no error!");
+            throw new Error("Empty profile data");
+        }
+
+        console.log("Profile loaded successfully:", data.username);
+        
+        // 4. Применение настроек и рендер UI
         currentUserProfile = data;
         applyThemeSettings(data);
         renderAppUI(data);
         
-        await Promise.all([fetchAndRenderChats(), fetchAndRenderContacts()]);
+        // 5. Загрузка чатов и контактов
+        console.log("Loading chats and contacts...");
+        await Promise.all([
+            fetchAndRenderChats(),
+            fetchAndRenderContacts()
+        ]);
+        
+        // 6. Показ основного экрана
+        console.log("Switching view to APP");
         showView('view-app');
+
     } catch (err) {
-        alert("Ошибка профиля");
+        console.error("CRITICAL ERROR in loadUserProfile:", err);
+        alert("Не удалось загрузить профиль. Подробности в консоли.");
     } finally {
-        loader.classList.add('hidden');
+        if(loader) loader.classList.add('hidden');
+        console.log("--- END LOAD PROFILE ---");
     }
 }
-
 function applyThemeSettings(profile) {
     if (profile.is_dark_mode) document.body.classList.add('dark-theme');
     else document.body.classList.remove('dark-theme');
