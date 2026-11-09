@@ -195,20 +195,23 @@ async function fetchAndRenderChats(searchTerm = '') {
     ul.innerHTML = '<li class="empty-msg">Загрузка...</li>';
 
     try {
-        // 1. Get my room IDs
-        const { data: myRoomsRaw, error: errRooms } = await sb.from('xsoc_members').select('room_id').eq('user_id', currentUserProfile.id);
-        if (errRooms) throw errRooms;
+        // 1. Получаем ТОЛЬКО свои записи об участии (благодаря новой политике Self Read Only)
+        const { data: myMemberships, error: errMem } = await sb.from('xsoc_members').select('room_id').eq('user_id', currentUserProfile.id);
         
-        if (!myRoomsRaw || myRoomsRaw.length === 0) {
+        if (errMem) throw errMem;
+        
+        if (!myMemberships || myMemberships.length === 0) {
             ul.innerHTML = '<li class="empty-msg">Нет активных чатов</li>';
             return;
         }
 
-        const roomIds = myRoomsRaw.map(r => r.room_id);
+        const roomIds = myMemberships.map(m => m.room_id);
 
-        // 2. Get Room Details
-        const { data: roomsDetails, error: errDetails } = await sb.from('xsoc_rooms').select('*').in('room_id', roomIds).order('created_at', { ascending: false });
-        if (errDetails) throw errDetails;
+        // 2. Получаем детали этих комнат из таблицы xsoc_rooms
+        // Здесь RLS для rooms должен позволять чтение, так как мы знаем ID комнат
+        const { data: roomsDetails, error: errRooms } = await sb.from('xsoc_rooms').select('*').in('room_id', roomIds).order('created_at', { ascending: false });
+        
+        if (errRooms) throw errRooms;
 
         ul.innerHTML = '';
         roomsDetails.forEach(room => {
@@ -237,7 +240,6 @@ async function fetchAndRenderChats(searchTerm = '') {
         ul.innerHTML = `<li class="empty-msg" style="color:red;">Ошибка: ${err.message}</li>`;
     }
 }
-
 function getKindLabel(kind) {
     switch(kind) {
         case 'dm': return 'Личный чат';
