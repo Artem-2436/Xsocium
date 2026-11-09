@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Xsocium</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="light-theme">
+
+    <!-- Экран Авторизации -->
+    <div id="view-auth" class="screen active">
+        <div class="glass-card auth-box">
+            <h1 class="brand">Xsocium</h1>
+            <div id="auth-tabs">
+                <button class="tab-btn active" onclick="switchAuthTab('login')">Вход</button>
+                <button class="tab-btn" onclick="switchAuthTab('register')">Регистрация</button>
+            </div>
+            
+            <!-- Форма Логина -->
+            <form id="form-login" class="auth-form">
+                <input type="email" placeholder="Email" required>
+                <input type="password" placeholder="Пароль" required>
+                <button type="submit">Войти</button>
+            </form>
+
+            <!-- Форма Регистрации -->
+            <form id="form-register" class="auth-form hidden">
+                <input type="text" id="reg-username" placeholder="Никнейм" required>
+                <input type="email" placeholder="Email" required>
+                <input type="password" placeholder="Пароль" required>
+                <button type="submit">Создать аккаунт</button>
+            </form>
+
+            <div id="loader-profile" class="hidden loader-circle"></div>
+        </div>
+    </div>
+
+    <!-- Основной Интерфейс -->
+    <div id="view-app" class="screen hidden">
+        
+        <!-- Header -->
+        <header class="app-header glass-bar">
+            <span class="logo-mini">Xs</span>
+            <div class="search-container">
+                <input type="text" id="global-search" placeholder="Поиск чатов...">
+            </div>
+            <button class="icon-btn" onclick="toggleMobileMenu()">⋮</button>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="content-area">
+            
+            <!-- Tab: Chats List -->
+            <section id="tab-chats-list" class="tab-pane active">
+                <ul id="chat-list-ul" class="list-clean"></ul>
+                <button class="fab-plus" onclick="openCreateRoomModal()">+</button>
+            </section>
+
+            <!-- Tab: Active Chat View (Hidden by default) -->
+            <section id="tab-chat-view" class="tab-pane hidden">
+                <div class="chat-header-info">
+                    <img id="active-chat-avatar" src="" alt="">
+                    <div>
+                        <h3 id="active-chat-name">Chat Name</h3>
+                        <small id="active-chat-status">Online</small>
+                    </div>
+                    <button class="icon-btn close-chat" onclick="closeActiveChat()">✕</button>
+                </div>
+                <div id="messages-container" class="messages-scroll-area"></div>
+                <div class="message-input-area glass-bar-bottom">
+                    <button class="attach-btn" onclick="triggerFileInput()">📎</button>
+                    <input type="file" id="file-upload" accept="image/*,video/*,audio/*" class="hidden">
+                    <textarea id="msg-textarea" placeholder="Сообщение..." rows="1"></textarea>
+                    <button class="send-btn" onclick="sendMessage()">➤</button>
+                </div>
+            </section>
+
+            <!-- Tab: Contacts -->
+            <section id="tab-contacts" class="tab-pane hidden">
+                <div class="search-bar-inner"><input type="text" id="contact-search" placeholder="Найти контакт..."></div>
+                <ul id="contact-list-ul" class="list-clean"></ul>
+                <button class="fab-plus" onclick="openAddContactModal()">👤+</button>
+            </section>
+
+            <!-- Tab: Settings -->
+            <section id="tab-settings" class="tab-pane hidden">
+                <div class="settings-profile">
+                    <div class="avatar-wrapper">
+                        <img id="my-avatar-img" src="" alt="Me">
+                        <label for="avatar-upload" class="edit-badge">✎</label>
+                        <input type="file" id="avatar-upload" accept="image/*" class="hidden">
+                    </div>
+                    <h2 id="my-fullname">User</h2>
+                    <p id="my-phone">+7...</p>
+                </div>
+                
+                <div class="settings-group">
+                    <label>Цвет темы</label>
+                    <select id="theme-color-select">
+                        <option value="#007bff">Blue</option>
+                        <option value="#ff3b30">Red</option>
+                        <option value="#34c759">Green</option>
+                        <option value="#af52de">Purple</option>
+                        <option value="#ff9500">Orange</option>
+                    </select>
+                    
+                    <div class="switch-row">
+                        <span>Темная тема</span>
+                        <input type="checkbox" id="dark-mode-toggle">
+                    </div>
+                </div>
+
+                <div class="settings-actions">
+                    <button class="action-btn" onclick="changePasswordPrompt()">Сменить пароль</button>
+                    <button class="action-btn" onclick="changePhonePrompt()">Изменить телефон</button>
+                    <hr>
+                    <button class="action-btn danger" onclick="logout()">Выйти</button>
+                    <button class="action-btn danger-outline" onclick="deleteAccountConfirm()">Удалить аккаунт</button>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav glass-bar">
+            <button class="nav-item active" data-tab="tab-chats-list">💬<br>Чаты</button>
+            <button class="nav-item" data-tab="tab-contacts">👥<br>Контакты</button>
+            <button class="nav-item" data-tab="tab-settings">⚙️<br>Настройки</button>
+        </nav>
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modal-root" class="modal-overlay hidden"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
