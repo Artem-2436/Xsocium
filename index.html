@@ -13,30 +13,35 @@
     <!-- Экран Авторизации -->
     <div id="view-auth" class="screen active">
         <div class="glass-card auth-box">
-            <h1 class="brand">Xsocium</h1>
-            <div id="auth-tabs">
-                <button class="tab-btn active" onclick="switchAuthTab('login')">Вход</button>
-                <button class="tab-btn" onclick="switchAuthTab('register')">Регистрация</button>
-            </div>
-            
-            <!-- Форма Логина -->
-            <form id="form-login" class="auth-form">
-                <input type="email" placeholder="Email" required>
-                <input type="password" placeholder="Пароль" required>
-                <button type="submit">Войти</button>
-            </form>
-
-            <!-- Форма Регистрации -->
-            <form id="form-register" class="auth-form hidden">
-                <input type="text" id="reg-username" placeholder="Никнейм" required>
-                <input type="email" placeholder="Email" required>
-                <input type="password" placeholder="Пароль" required>
-                <button type="submit">Создать аккаунт</button>
-            </form>
-
-            <div id="loader-profile" class="hidden loader-circle"></div>
-        </div>
+    <h1 class="brand">Xsocium</h1>
+    
+    <!-- Табы -->
+    <div id="auth-tabs" style="display:flex; justify-content:center; gap:20px; margin-bottom:20px;">
+        <button class="tab-btn active" onclick="switchAuthTab('login')">Вход</button>
+        <button class="tab-btn" onclick="switchAuthTab('register')">Регистрация</button>
     </div>
+    
+    <!-- Контейнер форм с transition -->
+    <div id="forms-wrapper" style="position:relative; overflow:hidden; min-height:250px;">
+        
+        <!-- Форма Логина -->
+        <form id="form-login" class="auth-form" style="transition: opacity 0.3s ease, transform 0.3s ease;">
+            <input type="email" placeholder="Email" required>
+            <input type="password" placeholder="Пароль" required>
+            <button type="submit">Войти</button>
+        </form>
+
+        <!-- Форма Регистрации (скрыта изначально) -->
+        <form id="form-register" class="auth-form hidden" style="transition: opacity 0.3s ease, transform 0.3s ease; position:absolute; top:0; left:0; width:100%;">
+            <input type="text" id="reg-username" placeholder="Никнейм" required>
+            <input type="email" placeholder="Email" required>
+            <input type="password" placeholder="Пароль" required>
+            <button type="submit">Создать аккаунт</button>
+        </form>
+    </div>
+    
+    <div id="loader-profile" class="hidden loader-circle"></div>
+</div>
 
     <!-- Основной Интерфейс -->
     <div id="view-app" class="screen hidden">
