@@ -125,19 +125,21 @@ function switchAuthTab(tabName) {
     const registerForm = document.getElementById('form-register');
     const tabs = document.querySelectorAll('.tab-btn');
     
-    if(loginForm) loginForm.classList.add('hidden');
-    if(registerForm) registerForm.classList.add('hidden');
+    // Сброс стилей табов
     tabs.forEach(t => t.classList.remove('active'));
 
     if (tabName === 'login') {
+        // Показываем логин, скрываем регистрацию
         if(loginForm) loginForm.classList.remove('hidden');
+        if(registerForm) registerForm.classList.add('hidden');
         if(tabs[0]) tabs[0].classList.add('active');
     } else {
+        // Показываем регистрацию, скрываем логин
+        if(loginForm) loginForm.classList.add('hidden');
         if(registerForm) registerForm.classList.remove('hidden');
         if(tabs[1]) tabs[1].classList.add('active');
     }
 }
-
 async function handleLogin(e) {
     e.preventDefault();
     const emailInput = e.target.querySelector('input[type="email"]');
