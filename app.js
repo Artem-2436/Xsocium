@@ -20,7 +20,7 @@ const SUPABASE_URL = 'https://epklfzbvlqzarptpwsdn.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_aa5ojwVrZ7pfLE0ec0DV5w_p3Zk2fcn'; 
 
 // Инициализация клиента с уникальным именем 'sb', чтобы не конфликтовать с глобальной переменной библиотеки
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Глобальные переменные состояния
 let currentUserProfile = null;
