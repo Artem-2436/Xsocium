@@ -1,3 +1,15 @@
+// --- ДИАГНОСТИКА ЗАГРУЗКИ БИБЛИОТЕКИ ---
+console.log("--- START DIAGNOSTICS ---");
+console.log("Window object:", window);
+console.log("Is 'supabase' global variable present?", typeof window.supabase);
+
+if (typeof window.supabase === 'undefined') {
+    console.error("CRITICAL ERROR: Library Supabase did NOT load!");
+    alert("Библиотека Supabase не загрузилась! Проверьте интернет или блокировщик рекламы.");
+} else {
+    console.log("Success: Library loaded. Available methods:", Object.keys(window.supabase));
+}
+console.log("--- END DIAGNOSTICS ---\n");
 // ==========================================
 // Xsocium App Logic (Fixed Version)
 // ==========================================
