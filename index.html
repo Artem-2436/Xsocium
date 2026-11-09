@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Xsocium</title>
     <link rel="stylesheet" href="style.css">
     <!-- Supabase CDN -->
@@ -10,96 +10,94 @@
 </head>
 <body class="light-theme">
 
-    <!-- Экран Авторизации -->
+    <!-- ЭКРАН АВТОРИЗАЦИИ -->
     <div id="view-auth" class="screen active">
         <div class="glass-card auth-box">
-    <h1 class="brand">Xsocium</h1>
-    
-    <!-- Табы -->
-    <div id="auth-tabs" style="display:flex; justify-content:center; gap:20px; margin-bottom:20px;">
-        <button class="tab-btn active" onclick="switchAuthTab('login')">Вход</button>
-        <button class="tab-btn" onclick="switchAuthTab('register')">Регистрация</button>
-    </div>
-    
-    <!-- Контейнер форм с transition -->
-    <div id="forms-wrapper" style="position:relative; overflow:hidden; min-height:250px;">
-        
-        <!-- Форма Логина -->
-        <form id="form-login" class="auth-form" style="transition: opacity 0.3s ease, transform 0.3s ease;">
-            <input type="email" placeholder="Email" required>
-            <input type="password" placeholder="Пароль" required>
-            <button type="submit">Войти</button>
-        </form>
+            <h1 class="brand">Xsocium</h1>
+            
+            <div class="tabs-container">
+                <button id="tab-login-btn" class="tab-btn active" onclick="switchAuthTab('login')">Вход</button>
+                <button id="tab-reg-btn" class="tab-btn" onclick="switchAuthTab('register')">Регистрация</button>
+            </div>
 
-        <!-- Форма Регистрации (скрыта изначально) -->
-        <form id="form-register" class="auth-form hidden" style="transition: opacity 0.3s ease, transform 0.3s ease; position:absolute; top:0; left:0; width:100%;">
-            <input type="text" id="reg-username" placeholder="Никнейм" required>
-            <input type="email" placeholder="Email" required>
-            <input type="password" placeholder="Пароль" required>
-            <button type="submit">Создать аккаунт</button>
-        </form>
-    </div>
-    
-    <div id="loader-profile" class="hidden loader-circle"></div>
-</div>
+            <!-- Форма Входа -->
+            <form id="form-login" class="auth-form">
+                <input type="email" placeholder="Email" required autocomplete="off">
+                <input type="password" placeholder="Пароль" required autocomplete="off">
+                <button type="submit" class="btn-primary">Войти</button>
+            </form>
 
-    <!-- Основной Интерфейс -->
+            <!-- Форма Регистрации (скрыта по умолчанию через JS/CSS) -->
+            <form id="form-register" class="auth-form" style="display:none;">
+                <input type="text" id="reg-user" placeholder="Никнейм" required autocomplete="off">
+                <input type="email" placeholder="Email" required autocomplete="off">
+                <input type="password" placeholder="Пароль" required autocomplete="off">
+                <button type="submit" class="btn-primary">Создать аккаунт</button>
+            </form>
+
+            <div id="loader-profile" class="loader-circle hidden"></div>
+        </div>
+    </div>
+
+    <!-- ОСНОВНОЙ ИНТЕРФЕЙС -->
     <div id="view-app" class="screen hidden">
         
-        <!-- Header -->
         <header class="app-header glass-bar">
             <span class="logo-mini">Xs</span>
-            <div class="search-container">
-                <input type="text" id="global-search" placeholder="Поиск чатов...">
-            </div>
-            <button class="icon-btn" onclick="toggleMobileMenu()">⋮</button>
+            <input type="text" id="global-search" placeholder="Поиск..." class="search-input">
+            <button class="icon-btn" onclick="alert('Меню разработчика')">⋮</button>
         </header>
 
-        <!-- Main Content Area -->
         <main id="content-area">
             
-            <!-- Tab: Chats List -->
+            <!-- Вкладка: Список Чатов -->
             <section id="tab-chats-list" class="tab-pane active">
-                <ul id="chat-list-ul" class="list-clean"></ul>
+                <ul id="chat-list-ul" class="list-clean">
+                    <li class="empty-msg">Загрузка...</li>
+                </ul>
                 <button class="fab-plus" onclick="openCreateRoomModal()">+</button>
             </section>
 
-            <!-- Tab: Active Chat View (Hidden by default) -->
+            <!-- Вкладка: Открытый Чат -->
             <section id="tab-chat-view" class="tab-pane hidden">
-                <div class="chat-header-info">
-                    <img id="active-chat-avatar" src="" alt="">
-                    <div>
+                <div class="chat-header-info glass-bar-bottom-sticky">
+                    <img id="active-chat-avatar" src="" alt="A" class="avatar-sm-img">
+                    <div class="chat-title-wrap">
                         <h3 id="active-chat-name">Chat Name</h3>
-                        <small id="active-chat-status">Online</small>
+                        <small id="active-chat-status">Offline</small>
                     </div>
                     <button class="icon-btn close-chat" onclick="closeActiveChat()">✕</button>
                 </div>
+                
                 <div id="messages-container" class="messages-scroll-area"></div>
-                <div class="message-input-area glass-bar-bottom">
-                    <button class="attach-btn" onclick="triggerFileInput()">📎</button>
-                    <input type="file" id="file-upload" accept="image/*,video/*,audio/*" class="hidden">
+                
+                <div class="message-input-area glass-bar-fixed-bottom">
+                    <button class="attach-btn" onclick="document.getElementById('file-upload').click()">📎</button>
+                    <input type="file" id="file-upload" accept="image/*,video/*,audio/*" style="display:none;">
                     <textarea id="msg-textarea" placeholder="Сообщение..." rows="1"></textarea>
                     <button class="send-btn" onclick="sendMessage()">➤</button>
                 </div>
             </section>
 
-            <!-- Tab: Contacts -->
+            <!-- Вкладка: Контакты -->
             <section id="tab-contacts" class="tab-pane hidden">
-                <div class="search-bar-inner"><input type="text" id="contact-search" placeholder="Найти контакт..."></div>
-                <ul id="contact-list-ul" class="list-clean"></ul>
-                <button class="fab-plus" onclick="openAddContactModal()">👤+</button>
+                <div class="inner-search"><input type="text" id="contact-search" placeholder="Найти контакт..."></div>
+                <ul id="contact-list-ul" class="list-clean">
+                     <li class="empty-msg">Нет контактов</li>
+                </ul>
+                <button class="fab-plus fab-contact" onclick="alert('Добавление контакта скоро!')">👤+</button>
             </section>
 
-            <!-- Tab: Settings -->
+            <!-- Вкладка: Настройки -->
             <section id="tab-settings" class="tab-pane hidden">
                 <div class="settings-profile">
                     <div class="avatar-wrapper">
                         <img id="my-avatar-img" src="" alt="Me">
                         <label for="avatar-upload" class="edit-badge">✎</label>
-                        <input type="file" id="avatar-upload" accept="image/*" class="hidden">
+                        <input type="file" id="avatar-upload" accept="image/*" style="display:none;">
                     </div>
                     <h2 id="my-fullname">User</h2>
-                    <p id="my-phone">+7...</p>
+                    <p id="my-phone">No Phone</p>
                 </div>
                 
                 <div class="settings-group">
@@ -109,7 +107,6 @@
                         <option value="#ff3b30">Red</option>
                         <option value="#34c759">Green</option>
                         <option value="#af52de">Purple</option>
-                        <option value="#ff9500">Orange</option>
                     </select>
                     
                     <div class="switch-row">
@@ -119,17 +116,13 @@
                 </div>
 
                 <div class="settings-actions">
-                    <button class="action-btn" onclick="changePasswordPrompt()">Сменить пароль</button>
-                    <button class="action-btn" onclick="changePhonePrompt()">Изменить телефон</button>
-                    <hr>
-                    <button class="action-btn danger" onclick="logout()">Выйти</button>
-                    <button class="action-btn danger-outline" onclick="deleteAccountConfirm()">Удалить аккаунт</button>
+                    <button class="action-btn danger" onclick="logout()">Выйти из системы</button>
                 </div>
             </section>
 
         </main>
 
-        <!-- Bottom Navigation -->
+        <!-- Нижняя Навигация -->
         <nav class="bottom-nav glass-bar">
             <button class="nav-item active" data-tab="tab-chats-list">💬<br>Чаты</button>
             <button class="nav-item" data-tab="tab-contacts">👥<br>Контакты</button>
@@ -137,8 +130,19 @@
         </nav>
     </div>
 
-    <!-- Modals Container -->
-    <div id="modal-root" class="modal-overlay hidden"></div>
+    <!-- Модальное окно создания комнаты -->
+    <div id="modal-root" class="modal-overlay hidden">
+        <div class="modal-content glass-card">
+            <span class="modal-close" onclick="closeModal()">×</span>
+            <h3>Новая комната</h3>
+            <select id="new-room-kind" style="width:100%; padding:10px; margin:10px 0;">
+                <option value="group">Группа</option>
+                <option value="channel_pub">Публичный Канал</option>
+            </select>
+            <input type="text" id="new-room-name" placeholder="Название" style="width:100%; padding:10px; margin-bottom:10px;">
+            <button onclick="createNewRoom()" class="btn-primary full-width">Создать</button>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
