@@ -1,144 +1,226 @@
-// --- CONFIGURATION ---
-const SUPABASE_URL = 'https://epklfzbvlqzarptpwsdn.supabase.co'; // ЗАМЕНИТЬ!
-const SUPABASE_ANON_KEY = 'sb_publishable_aa5ojwVrZ7pfLE0ec0DV5w_p3Zk2fcn'; // ЗАМЕНИТЬ!
+// ==========================================
+// Xsocium App Logic (Fixed Version)
+// ==========================================
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// --- CONFIGURATION ---
+// ЗАМЕНИ ЭТИ ЗНАЧЕНИЯ НА СВОИ ИЗ SUPABASE DASHBOARD!
+const SUPABASE_URL = 'https://epklfzbvlqzarptpwsdn.supabase.co'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_aa5ojwVrZ7pfLE0ec0DV5w_p3Zk2fcn'; 
+
+// Инициализация клиента с уникальным именем 'sb', чтобы не конфликтовать с глобальной переменной библиотеки
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Глобальные переменные состояния
 let currentUserProfile = null;
-let currentChannelSubscription = null; // For realtime chat
 let activeRoomId = null;
+let currentChannelSubscription = null;
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log("Xsocium initializing...");
     setupEventListeners();
     await checkSession();
 });
 
 function setupEventListeners() {
-    // Auth Forms
-    document.getElementById('form-login').addEventListener('submit', handleLogin);
-    document.getElementById('form-register').addEventListener('submit', handleRegister);
+    // 1. Auth Tabs Switching
+    const btnLogin = document.querySelector('.tab-btn:nth-child(1)');
+    const btnReg = document.querySelector('.tab-btn:nth-child(2)');
     
-    // Navigation Tabs
-    document.querySelectorAll('.nav-item').forEach(btn => {
-        btn.addEventListener('click', (e) => switchTab(e.currentTarget.dataset.tab));
-    });
-
-    // Search Inputs
-    document.getElementById('global-search').addEventListener('input', debounce(filterChats, 300));
-    document.getElementById('contact-search').addEventListener('input', debounce(filterContacts, 300));
-
-    // File Uploads
-    document.getElementById('avatar-upload').addEventListener('change', uploadAvatar);
-    document.getElementById('file-upload').addEventListener('change', uploadMediaMessage);
-
-    // Theme Controls
-    document.getElementById('dark-mode-toggle').addEventListener('change', toggleDarkMode);
-    document.getElementById('theme-color-select').addEventListener('change', changeThemeColor);
-}
-
-async function checkSession() {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (session) {
-        await loadUserProfile(session.user.id);
-    } else {
-        showView('view-auth');
+    if(btnLogin && btnReg) {
+        btnLogin.addEventListener('click', () => switchAuthTab('login'));
+        btnReg.addEventListener('click', () => switchAuthTab('register'));
     }
 
-    // Listen for auth changes
-    supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_OUT') {
-            location.reload();
-        }
+    // 2. Form Submissions
+    const formLogin = document.getElementById('form-login');
+    const formRegister = document.getElementById('form-register');
+
+    if(formLogin) formLogin.addEventListener('submit', handleLogin);
+    if(formRegister) formRegister.addEventListener('submit', handleRegister);
+
+    // 3. Bottom Navigation
+    document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const tabId = e.currentTarget.dataset.tab;
+            if(tabId) switchMainTab(tabId);
+        });
     });
+
+    // 4. Search Inputs
+    const globalSearch = document.getElementById('global-search');
+    const contactSearch = document.getElementById('contact-search');
+    
+    if(globalSearch) globalSearch.addEventListener('input', debounce(() => fetchAndRenderChats(globalSearch.value), 300));
+    if(contactSearch) contactSearch.addEventListener('input', debounce(() => fetchAndRenderContacts(contactSearch.value), 300));
+
+    // 5. File Uploads
+    const avatarUpload = document.getElementById('avatar-upload');
+    const fileUpload = document.getElementById('file-upload');
+    
+    if(avatarUpload) avatarUpload.addEventListener('change', uploadAvatar);
+    if(fileUpload) fileUpload.addEventListener('change', uploadMediaMessage);
+
+    // 6. Settings Controls
+    const darkToggle = document.getElementById('dark-mode-toggle');
+    const themeSelect = document.getElementById('theme-color-select');
+    
+    if(darkToggle) darkToggle.addEventListener('change', toggleDarkMode);
+    if(themeSelect) themeSelect.addEventListener('change', changeThemeColor);
+}
+
+// --- AUTH LOGIC ---
+
+async function checkSession() {
+    try {
+        const { data: { session }, error } = await sb.auth.getSession();
+        
+        if (error) throw error;
+
+        if (session) {
+            console.log("User logged in:", session.user.email);
+            await loadUserProfile(session.user.id);
+        } else {
+            showView('view-auth');
+        }
+
+        // Listen for future auth state changes
+        sb.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT') {
+                location.reload();
+            }
+        });
+
+    } catch (err) {
+        console.error("Session check failed:", err);
+        showView('view-auth');
+    }
 }
 
 function showView(viewId) {
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
-    document.getElementById(viewId).classList.remove('hidden');
+    const target = document.getElementById(viewId);
+    if(target) target.classList.remove('hidden');
 }
 
-function switchAuthTab(tab) {
+function switchAuthTab(tabName) {
     const loginForm = document.getElementById('form-login');
-    const regForm = document.getElementById('form-register');
+    const registerForm = document.getElementById('form-register');
     const tabs = document.querySelectorAll('.tab-btn');
     
+    // Reset visibility
+    if(loginForm) loginForm.classList.add('hidden');
+    if(registerForm) registerForm.classList.add('hidden');
+    
+    // Reset active states
     tabs.forEach(t => t.classList.remove('active'));
-    if (tab === 'login') {
-        loginForm.classList.remove('hidden');
-        regForm.classList.add('hidden');
-        tabs[0].classList.add('active');
+
+    if (tabName === 'login') {
+        if(loginForm) loginForm.classList.remove('hidden');
+        if(tabs[0]) tabs[0].classList.add('active');
     } else {
-        loginForm.classList.add('hidden');
-        regForm.classList.remove('hidden');
-        tabs[1].classList.add('active');
+        if(registerForm) registerForm.classList.remove('hidden');
+        if(tabs[1]) tabs[1].classList.add('active');
     }
 }
 
 async function handleLogin(e) {
     e.preventDefault();
-    const email = e.target[0].value;
-    const password = e.target[1].value;
+    const emailInput = e.target.querySelector('input[type="email"]');
+    const passInput = e.target.querySelector('input[type="password"]');
     
+    if(!emailInput || !passInput) return;
+
+    const email = emailInput.value.trim();
+    const password = passInput.value;
+
+    if(!email || !password) {
+        alert("Заполните все поля");
+        return;
+    }
+
     try {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        // Session will be picked up by onAuthStateChange or next reload logic
-        // But let's force load profile immediately
-        const { data: { session } } = await supabase.auth.getSession();
+        
+        // Success handled by onAuthStateChange or manual reload logic below
+        // But let's force profile load immediately for better UX
+        const { data: { session } } = await sb.auth.getSession();
         if(session) await loadUserProfile(session.user.id);
+        
     } catch (err) {
-        alert(err.message);
+        console.error("Login Error:", err);
+        alert("Ошибка входа: " + err.message);
     }
 }
 
 async function handleRegister(e) {
     e.preventDefault();
-    const username = document.getElementById('reg-username').value;
-    const email = e.target[1].value; // Second input is email
-    const password = e.target[2].value; // Third input is password
-    
+    const inputs = e.target.querySelectorAll('input');
+    // Order: Username, Email, Password
+    const username = inputs[0]?.value.trim();
+    const email = inputs[1]?.value.trim();
+    const password = inputs[2]?.value;
+
+    if(!username || !email || !password) {
+        alert("Заполните все поля");
+        return;
+    }
+
     try {
-        const { data, error } = await supabase.auth.signUp({
+        // 1. Sign up in Auth
+        const { data, error } = await sb.auth.signUp({
             email,
             password,
             options: {
                 data: { username: username }
             }
         });
+        
         if (error) throw error;
-        
-        // Create Profile in DB
-        await createInitialProfile(data.user.id, username);
-        
-        // Auto Login
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (!signInError) {
-             const { data: { session } } = await supabase.auth.getSession();
-             if(session) await loadUserProfile(session.user.id);
+
+        // 2. Create Profile in Database
+        if(data.user) {
+            await createInitialProfile(data.user.id, username);
+            
+            // Auto Login after registration
+            const { error: signInError } = await sb.auth.signInWithPassword({ email, password });
+            if (!signInError) {
+                 const { data: { session } } = await sb.auth.getSession();
+                 if(session) await loadUserProfile(session.user.id);
+            }
         }
+
     } catch (err) {
-        alert(err.message);
+        console.error("Registration Error:", err);
+        alert("Ошибка регистрации: " + err.message);
     }
 }
 
 async function createInitialProfile(userId, username) {
-    const { error } = await supabase.from('xsoc_profiles').insert([{
-        id: userId,
-        username: username,
-        full_name: username,
-        phone_number: null,
-        theme_color: '#007bff',
-        is_dark_mode: false
-    }]);
-    if (error) console.error("Profile creation failed:", error);
+    try {
+        const { error } = await sb.from('xsoc_profiles').insert([{
+            id: userId,
+            username: username,
+            full_name: username,
+            phone_number: null,
+            theme_color: '#007bff',
+            is_dark_mode: false
+        }]);
+        if (error) throw error;
+    } catch (err) {
+        console.error("Profile Creation Failed:", err);
+        // If it fails because user exists, ignore. Otherwise log.
+    }
 }
 
 async function loadUserProfile(userId) {
     const loader = document.getElementById('loader-profile');
-    loader.classList.remove('hidden');
+    if(loader) loader.classList.remove('hidden');
     
     try {
-        const { data, error } = await supabase
+        const { data, error } = await sb
             .from('xsoc_profiles')
             .select('*')
             .eq('id', userId)
@@ -147,7 +229,7 @@ async function loadUserProfile(userId) {
         if (error && error.code !== 'PGRST116') throw error;
         
         if (!data) {
-            // Should not happen if registration worked, but fallback
+            // Fallback if profile missing but session valid
             await createInitialProfile(userId, 'User'+Math.floor(Math.random()*1000));
             return loadUserProfile(userId);
         }
@@ -155,14 +237,19 @@ async function loadUserProfile(userId) {
         currentUserProfile = data;
         applyThemeSettings(data);
         renderAppUI(data);
-        await fetchAndRenderChats();
-        await fetchAndRenderContacts();
+        
+        // Load initial data
+        await Promise.all([
+            fetchAndRenderChats(),
+            fetchAndRenderContacts()
+        ]);
         
         showView('view-app');
     } catch (err) {
-        alert("Ошибка загрузки профиля: " + err.message);
+        console.error("Load Profile Error:", err);
+        alert("Не удалось загрузить профиль. Проверьте консоль.");
     } finally {
-        loader.classList.add('hidden');
+        if(loader) loader.classList.add('hidden');
     }
 }
 
@@ -171,63 +258,102 @@ function applyThemeSettings(profile) {
     else document.body.classList.remove('dark-theme');
     
     document.documentElement.style.setProperty('--primary', profile.theme_color);
-    document.getElementById('dark-mode-toggle').checked = profile.is_dark_mode;
-    document.getElementById('theme-color-select').value = profile.theme_color;
+    
+    const darkToggle = document.getElementById('dark-mode-toggle');
+    const themeSelect = document.getElementById('theme-color-select');
+    
+    if(darkToggle) darkToggle.checked = profile.is_dark_mode;
+    if(themeSelect) themeSelect.value = profile.theme_color;
 }
 
 function renderAppUI(profile) {
-    document.getElementById('my-fullname').textContent = profile.full_name || profile.username;
-    document.getElementById('my-phone').textContent = profile.phone_number || 'Не указан';
-    if(profile.avatar_url) document.getElementById('my-avatar-img').src = profile.avatar_url;
-    else document.getElementById('my-avatar-img').alt = profile.username.charAt(0).toUpperCase();
+    const nameEl = document.getElementById('my-fullname');
+    const phoneEl = document.getElementById('my-phone');
+    const avatarEl = document.getElementById('my-avatar-img');
+    
+    if(nameEl) nameEl.textContent = profile.full_name || profile.username;
+    if(phoneEl) phoneEl.textContent = profile.phone_number || 'Не указан';
+    
+    if(avatarEl) {
+        if(profile.avatar_url) {
+            avatarEl.src = profile.avatar_url;
+            avatarEl.alt = "";
+        } else {
+            // Show first letter fallback
+            avatarEl.src = ''; 
+            avatarEl.alt = profile.username.charAt(0).toUpperCase();
+            avatarEl.style.display = 'none'; // Hide img, show text via CSS pseudo-element or sibling if implemented
+            // For simplicity in this fix, we just leave src empty. 
+            // Ideally, you'd have a div behind the image showing the letter.
+        }
+    }
 }
 
-function switchTab(tabId) {
+// --- NAVIGATION & TABS ---
+
+function switchMainTab(tabId) {
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-    document.getElementById(tabId).classList.remove('hidden');
+    const targetPane = document.getElementById(tabId);
+    if(targetPane) targetPane.classList.remove('hidden');
     
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.querySelector(`.nav-item[data-tab="${tabId}"]`).classList.add('active');
+    const activeBtn = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
+    if(activeBtn) activeBtn.classList.add('active');
     
+    // Refresh data when switching to relevant tabs
     if(tabId === 'tab-chats-list') fetchAndRenderChats();
     if(tabId === 'tab-contacts') fetchAndRenderContacts();
 }
+
 // --- CHAT LOGIC ---
 
 async function fetchAndRenderChats(searchTerm = '') {
-    const { data: rooms, error } = await supabase
-        .from('xsoc_rooms')
-        .select('*, xsoc_members(user_id, role)')
-        .order('created_at', { ascending: false });
+    if(!currentUserProfile) return;
 
-    if (error) { console.error(error); return; }
+    try {
+        // Fetch rooms where user is member OR public channels
+        const { data: rooms, error } = await sb
+            .from('xsoc_rooms')
+            .select('*, xsoc_members(user_id, role)')
+            .order('created_at', { ascending: false });
 
-    const ul = document.getElementById('chat-list-ul');
-    ul.innerHTML = '';
+        if (error) throw error;
 
-    rooms.forEach(room => {
-        // Check if user is member
-        const isMember = room.xsoc_members.some(m => m.user_id === currentUserProfile.id);
-        const isPublicChannel = room.kind === 'channel_pub';
-        
-        if (!isMember && !isPublicChannel) return; // Hide private non-member chats
+        const ul = document.getElementById('chat-list-ul');
+        if(!ul) return;
+        ul.innerHTML = '';
 
-        if (searchTerm && !room.name.toLowerCase().includes(searchTerm.toLowerCase())) return;
+        rooms.forEach(room => {
+            const isMember = room.xsoc_members.some(m => m.user_id === currentUserProfile.id);
+            const isPublicChannel = room.kind === 'channel_pub' && room.is_public;
+            
+            // Security Filter: Only show if member or public channel
+            if (!isMember && !isPublicChannel) return;
 
-        const li = document.createElement('li');
-        li.className = 'list-item';
-        li.onclick = () => openChatRoom(room.room_id, room.name, room.avatar_url, room.kind);
-        
-        // Get last message preview (optional optimization: join with messages table later)
-        li.innerHTML = `
-            <div class="avatar-sm">${room.avatar_url ? `<img src="${room.avatar_url}" style="width:100%;height:100%;border-radius:50%">` : room.name.charAt(0)}</div>
-            <div class="item-details">
-                <div class="item-title">${room.name}</div>
-                <div class="item-sub">${getKindLabel(room.kind)}</div>
-            </div>
-        `;
-        ul.appendChild(li);
-    });
+            // Search Filter
+            if (searchTerm && !room.name.toLowerCase().includes(searchTerm.toLowerCase())) return;
+
+            const li = document.createElement('li');
+            li.className = 'list-item';
+            li.onclick = () => openChatRoom(room.room_id, room.name, room.avatar_url, room.kind);
+            
+            const avatarContent = room.avatar_url 
+                ? `<img src="${room.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` 
+                : room.name.charAt(0).toUpperCase();
+
+            li.innerHTML = `
+                <div class="avatar-sm">${avatarContent}</div>
+                <div class="item-details">
+                    <div class="item-title">${escapeHtml(room.name)}</div>
+                    <div class="item-sub">${getKindLabel(room.kind)}</div>
+                </div>
+            `;
+            ul.appendChild(li);
+        });
+
+    } catch (err) {
+        console.error("Fetch Chats Error:", err);
+    }
 }
 
 function getKindLabel(kind) {
@@ -242,36 +368,50 @@ function getKindLabel(kind) {
 
 async function openChatRoom(roomId, name, avatarUrl, kind) {
     activeRoomId = roomId;
-    document.getElementById('active-chat-name').textContent = name;
-    document.getElementById('active-chat-avatar').src = avatarUrl || '';
+    
+    const nameEl = document.getElementById('active-chat-name');
+    const avatarEl = document.getElementById('active-chat-avatar');
+    const statusEl = document.getElementById('active-chat-status');
+    
+    if(nameEl) nameEl.textContent = name;
+    if(avatarEl) avatarEl.src = avatarUrl || '';
+    if(statusEl) statusEl.textContent = getKindLabel(kind);
+    
+    // Switch views
     document.getElementById('tab-chat-view').classList.remove('hidden');
     document.getElementById('tab-chats-list').classList.add('hidden');
     
     // Load History
-    const { data: msgs, error } = await supabase
-        .from('xsoc_messages')
-        .select('*')
-        .eq('room_id', roomId)
-        .order('sent_at', { ascending: true });
-        
-    if(msgs) renderMessages(msgs);
+    try {
+        const { data: msgs, error } = await sb
+            .from('xsoc_messages')
+            .select('*')
+            .eq('room_id', roomId)
+            .order('sent_at', { ascending: true });
+            
+        if(msgs) renderMessages(msgs);
+    } catch(err) {
+        console.error("Load Messages Error:", err);
+    }
 
     // Subscribe to Realtime
-    subscribeToRoom(roomId, kind);
+    subscribeToRoom(roomId);
 }
 
 function closeActiveChat() {
     activeRoomId = null;
     if(currentChannelSubscription) {
-        supabase.removeChannel(currentChannelSubscription);
+        sb.removeChannel(currentChannelSubscription);
         currentChannelSubscription = null;
     }
     document.getElementById('tab-chat-view').classList.add('hidden');
     document.getElementById('tab-chats-list').classList.remove('hidden');
+    fetchAndRenderChats(); // Refresh list
 }
 
 function renderMessages(messages) {
     const container = document.getElementById('messages-container');
+    if(!container) return;
     container.innerHTML = '';
     messages.forEach(msg => appendMessageDOM(msg));
     container.scrollTop = container.scrollHeight;
@@ -279,26 +419,30 @@ function renderMessages(messages) {
 
 function appendMessageDOM(msg) {
     const container = document.getElementById('messages-container');
+    if(!container) return;
+    
     const div = document.createElement('div');
     const isMine = msg.sender_id === currentUserProfile.id;
     div.className = `msg-bubble ${isMine ? 'msg-mine' : ''}`;
     
     let contentHtml = '';
     if (msg.media_type === 'image') contentHtml = `<img src="${msg.content}" style="max-width:100%; border-radius:10px;">`;
-    else if (msg.media_type === 'audio') contentHtml = `<audio controls src="${msg.content}"></audio>`;
+    else if (msg.media_type === 'audio') contentHtml = `<audio controls src="${msg.content}" style="width:100%;"></audio>`;
     else if (msg.media_type === 'video') contentHtml = `<video controls src="${msg.content}" style="max-width:100%; border-radius:10px;"></video>`;
     else contentHtml = escapeHtml(msg.content);
 
-    div.innerHTML = `${contentHtml}<br><small>${new Date(msg.sent_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</small>`;
+    const timeStr = new Date(msg.sent_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    
+    div.innerHTML = `${contentHtml}<br><small style="opacity:0.7; font-size:0.7rem;">${timeStr}</small>`;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
 
-function subscribeToRoom(roomId, kind) {
-    if(currentChannelSubscription) supabase.removeChannel(currentChannelSubscription);
+function subscribeToRoom(roomId) {
+    if(currentChannelSubscription) sb.removeChannel(currentChannelSubscription);
     
-    // Filter strictly by room_id to prevent leaks
-    currentChannelSubscription = supabase.channel(`room_${roomId}`)
+    // Strict filter ensures we only get messages for THIS room
+    currentChannelSubscription = sb.channel(`room_${roomId}`)
         .on('postgres_changes', { 
             event: '*', 
             schema: 'public', 
@@ -310,127 +454,164 @@ function subscribeToRoom(roomId, kind) {
             }
         })
         .subscribe(status => {
-            if(status === 'SUBSCRIBED') console.log('Connected to chat realtime');
+            if(status === 'SUBSCRIBED') console.log('Realtime connected:', roomId);
         });
 }
 
 async function sendMessage() {
-    if(!activeRoomId) return;
+    if(!activeRoomId || !currentUserProfile) return;
+    
     const textarea = document.getElementById('msg-textarea');
+    if(!textarea) return;
+    
     const text = textarea.value.trim();
     if(!text) return;
 
-    // Determine permissions based on Room Kind
-    // Simplified: Assume user can send if they are here. 
-    // In production, check 'role' from members table first.
-    
-    const { error } = await supabase.from('xsoc_messages').insert([{
-        room_id: activeRoomId,
-        sender_id: currentUserProfile.id,
-        content: text,
-        media_type: 'text'
-    }]);
+    try {
+        const { error } = await sb.from('xsoc_messages').insert([{
+            room_id: activeRoomId,
+            sender_id: currentUserProfile.id,
+            content: text,
+            media_type: 'text'
+        }]);
 
-    if(error) alert("Ошибка отправки: " + error.message);
-    else textarea.value = '';
+        if(error) throw error;
+        textarea.value = '';
+    } catch (err) {
+        console.error("Send Message Error:", err);
+        alert("Ошибка отправки сообщения");
+    }
 }
 
 async function uploadMediaMessage(e) {
     const file = e.target.files[0];
-    if(!file || !activeRoomId) return;
+    if(!file || !activeRoomId || !currentUserProfile) return;
     
     const ext = file.name.split('.').pop();
     const path = `${currentUserProfile.id}/${Date.now()}.${ext}`;
     
-    // Upload to Storage bucket 'xsoc-media' (Must create this bucket in Supabase Dashboard!)
-    const { data, error } = await supabase.storage.from('xsoc-media').upload(path, file);
-    if(error) { alert("Upload failed"); return; }
+    try {
+        // Upload to Storage Bucket 'xsoc-media'
+        const { data, error } = await sb.storage.from('xsoc-media').upload(path, file);
+        if(error) throw error;
 
-    const publicUrl = supabase.storage.from('xsoc-media').getPublicUrl(data.path).data.publicUrl;
-    
-    let type = 'image';
-    if(file.type.startsWith('video')) type = 'video';
-    if(file.type.startsWith('audio')) type = 'audio';
+        const publicUrlResult = sb.storage.from('xsoc-media').getPublicUrl(data.path);
+        const publicUrl = publicUrlResult.data.publicUrl;
+        
+        let type = 'image';
+        if(file.type.startsWith('video')) type = 'video';
+        if(file.type.startsWith('audio')) type = 'audio';
 
-    await supabase.from('xsoc_messages').insert([{
-        room_id: activeRoomId,
-        sender_id: currentUserProfile.id,
-        content: publicUrl,
-        media_type: type
-    }]);
-    
-    e.target.value = ''; // Reset input
+        await sb.from('xsoc_messages').insert([{
+            room_id: activeRoomId,
+            sender_id: currentUserProfile.id,
+            content: publicUrl,
+            media_type: type
+        }]);
+        
+        e.target.value = ''; // Reset input
+    } catch (err) {
+        console.error("Upload Media Error:", err);
+        alert("Ошибка загрузки файла");
+    }
 }
 
 function triggerFileInput() {
-    document.getElementById('file-upload').click();
+    const input = document.getElementById('file-upload');
+    if(input) input.click();
 }
+
 // --- CONTACTS LOGIC ---
 
 async function fetchAndRenderContacts(searchTerm = '') {
-    const { data: contacts, error } = await supabase
-        .from('xsoc_contacts')
-        .select('target_id, xsoc_profiles(*)')
-        .eq('owner_id', currentUserProfile.id);
+    if(!currentUserProfile) return;
 
-    if (error) { console.error(error); return; }
+    try {
+        const { data: contacts, error } = await sb
+            .from('xsoc_contacts')
+            .select('target_id, xsoc_profiles(*)')
+            .eq('owner_id', currentUserProfile.id);
 
-    const ul = document.getElementById('contact-list-ul');
-    ul.innerHTML = '';
+        if (error) throw error;
 
-    contacts.forEach(c => {
-        const prof = c.xsoc_profiles;
-        if(searchTerm && !prof.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) && !prof.username?.toLowerCase().includes(searchTerm.toLowerCase())) return;
+        const ul = document.getElementById('contact-list-ul');
+        if(!ul) return;
+        ul.innerHTML = '';
 
-        const li = document.createElement('li');
-        li.className = 'list-item';
-        li.innerHTML = `
-            <div class="avatar-sm">${prof.avatar_url ? `<img src="${prof.avatar_url}" style="width:100%;height:100%;border-radius:50%">` : prof.username.charAt(0)}</div>
-            <div class="item-details">
-                <div class="item-title">${prof.full_name || prof.username}</div>
-                <div class="item-sub">${prof.phone_number || 'No Phone'}</div>
-            </div>
-            <div style="display:flex; gap:10px;">
-                <button class="icon-btn" onclick="startCall('${prof.id}', '${prof.username}')">📞</button>
-                <button class="icon-btn" onclick="createDM('${prof.id}', '${prof.username}')">💬</button>
-            </div>
-        `;
-        ul.appendChild(li);
-    });
+        contacts.forEach(c => {
+            const prof = c.xsoc_profiles;
+            if(!prof) return;
+
+            const searchLower = searchTerm.toLowerCase();
+            const nameMatch = prof.full_name?.toLowerCase().includes(searchLower);
+            const userMatch = prof.username?.toLowerCase().includes(searchLower);
+            
+            if(searchTerm && !nameMatch && !userMatch) return;
+
+            const li = document.createElement('li');
+            li.className = 'list-item';
+            
+            const avatarContent = prof.avatar_url 
+                ? `<img src="${prof.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` 
+                : prof.username.charAt(0).toUpperCase();
+
+            li.innerHTML = `
+                <div class="avatar-sm">${avatarContent}</div>
+                <div class="item-details">
+                    <div class="item-title">${escapeHtml(prof.full_name || prof.username)}</div>
+                    <div class="item-sub">${prof.phone_number || 'No Phone'}</div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button class="icon-btn" onclick="startCall('${prof.id}', '${escapeHtml(prof.username)}')">📞</button>
+                    <button class="icon-btn" onclick="createDM('${prof.id}', '${escapeHtml(prof.username)}')">💬</button>
+                </div>
+            `;
+            ul.appendChild(li);
+        });
+
+    } catch (err) {
+        console.error("Fetch Contacts Error:", err);
+    }
 }
 
 async function createDM(targetUserId, targetName) {
-    // Check if DM exists
-    const { data: existing } = await supabase.from('xsoc_rooms').select('*').eq('kind', 'dm');
-    // Note: Proper DM logic requires checking participants. Simplified here: Always create new or find existing pair.
-    // For brevity, we'll just insert a new room named after the user. 
-    
-    const { data, error } = await supabase.from('xsoc_rooms').insert([{
-        kind: 'dm',
-        name: targetName,
-        creator_id: currentUserProfile.id,
-        is_public: false
-    }]).select().single();
+    if(!currentUserProfile) return;
 
-    if(error) { alert(error.message); return; }
-    
-    // Add other user as member
-    await supabase.from('xsoc_members').insert([
-        { room_id: data.room_id, user_id: currentUserProfile.id, role: 'admin' },
-        { room_id: data.room_id, user_id: targetUserId, role: 'member' }
-    ]);
-    
-    openChatRoom(data.room_id, targetName, '', 'dm');
+    try {
+        // Check if DM already exists between these two users? 
+        // Simplified: Just create a new one for now. In prod, query existing pairs.
+        
+        const { data: newRoom, error } = await sb.from('xsoc_rooms').insert([{
+            kind: 'dm',
+            name: targetName,
+            creator_id: currentUserProfile.id,
+            is_public: false
+        }]).select().single();
+
+        if(error) throw error;
+        
+        // Add both users as members
+        await sb.from('xsoc_members').insert([
+            { room_id: newRoom.room_id, user_id: currentUserProfile.id, role: 'admin' },
+            { room_id: newRoom.room_id, user_id: targetUserId, role: 'member' }
+        ]);
+        
+        openChatRoom(newRoom.room_id, targetName, '', 'dm');
+        
+    } catch (err) {
+        console.error("Create DM Error:", err);
+        alert("Ошибка создания чата");
+    }
 }
 
 function startCall(receiverId, receiverName) {
-    // Simple simulation of call initiation via logging
+    // Simulation of call logging
     alert(`Звонок ${receiverName}...\n(WebRTC signaling would go here)`);
-    supabase.from('xsoc_calls_log').insert([{
+    sb.from('xsoc_calls_log').insert([{
         caller_id: currentUserProfile.id,
         receiver_id: receiverId,
-        status: 'missed' // Placeholder
-    }]);
+        status: 'missed'
+    }]).catch(console.error);
 }
 
 // --- SETTINGS & UTILS ---
@@ -448,32 +629,52 @@ function changeThemeColor(e) {
 }
 
 async function updateProfileField(field, value) {
-    await supabase.from('xsoc_profiles').update({ [field]: value }).eq('id', currentUserProfile.id);
+    if(!currentUserProfile) return;
+    try {
+        await sb.from('xsoc_profiles').update({ [field]: value }).eq('id', currentUserProfile.id);
+    } catch (err) {
+        console.error("Update Profile Field Error:", err);
+    }
 }
 
 async function uploadAvatar(e) {
     const file = e.target.files[0];
-    if(!file) return;
+    if(!file || !currentUserProfile) return;
     
     const path = `avatars/${currentUserProfile.id}.jpg`;
-    const { data, error } = await supabase.storage.from('xsoc-media').upload(path, file, { cacheControl: '3600', upsert: true });
-    if(error) { alert(error.message); return; }
+    
+    try {
+        const { data, error } = await sb.storage.from('xsoc-media').upload(path, file, { cacheControl: '3600', upsert: true });
+        if(error) throw error;
 
-    const url = supabase.storage.from('xsoc-media').getPublicUrl(path).data.publicUrl;
-    await updateProfileField('avatar_url', url);
-    document.getElementById('my-avatar-img').src = url;
+        const urlResult = sb.storage.from('xsoc-media').getPublicUrl(path);
+        const url = urlResult.data.publicUrl;
+        
+        await updateProfileField('avatar_url', url);
+        currentUserProfile.avatar_url = url;
+        
+        const imgEl = document.getElementById('my-avatar-img');
+        if(imgEl) imgEl.src = url;
+        
+    } catch (err) {
+        console.error("Avatar Upload Error:", err);
+        alert("Ошибка загрузки аватарки");
+    }
 }
 
 function logout() {
-    supabase.auth.signOut();
+    sb.auth.signOut().then(() => {
+        location.reload();
+    });
 }
 
 function deleteAccountConfirm() {
     if(confirm("Вы уверены? Все данные будут удалены навсегда.")) {
-        // In real app, you'd need an Edge Function to delete auth user safely.
-        // Here we just delete profile and rely on cascade.
-        supabase.from('xsoc_profiles').delete().eq('id', currentUserProfile.id).then(() => {
-            supabase.auth.signOut();
+        // Note: Deleting auth user usually requires Edge Function for security reasons.
+        // Here we attempt direct deletion which might fail depending on Supabase settings.
+        sb.from('xsoc_profiles').delete().eq('id', currentUserProfile.id).then(({error}) => {
+            if(error) alert("Ошибка удаления профиля: " + error.message);
+            else sb.auth.signOut().then(() => location.reload());
         });
     }
 }
@@ -481,7 +682,7 @@ function deleteAccountConfirm() {
 function changePasswordPrompt() {
     const newPass = prompt("Новый пароль:");
     if(newPass) {
-        supabase.auth.updateUser({ password: newPass }).then(({error}) => {
+        sb.auth.updateUser({ password: newPass }).then(({error}) => {
             if(error) alert(error.message);
             else alert("Пароль изменен!");
         });
@@ -495,8 +696,9 @@ function changePhonePrompt() {
 
 // Helper Functions
 function escapeHtml(text) {
+    if(!text) return '';
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    return text.toString().replace(/[&<>"']/g, m => map[m]);
 }
 
 function debounce(func, wait) {
@@ -512,40 +714,54 @@ function filterContacts(e) { fetchAndRenderContacts(e.target.value); }
 
 function openCreateRoomModal() {
     const modalRoot = document.getElementById('modal-root');
+    if(!modalRoot) return;
+    
     modalRoot.innerHTML = `
         <div class="modal-content">
             <span class="modal-close" onclick="closeModal()">×</span>
             <h3>Новая комната</h3>
-            <select id="new-room-kind">
+            <select id="new-room-kind" style="width:100%; padding:10px; margin:10px 0;">
                 <option value="group">Группа</option>
                 <option value="channel_pub">Публичный Канал</option>
                 <option value="channel_priv">Закрытый Канал</option>
             </select>
-            <input type="text" id="new-room-name" placeholder="Название">
-            <button onclick="createNewRoom()">Создать</button>
+            <input type="text" id="new-room-name" placeholder="Название" style="width:100%; padding:10px; margin-bottom:10px;">
+            <button onclick="createNewRoom()" style="width:100%; padding:10px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer;">Создать</button>
         </div>
     `;
     modalRoot.classList.remove('hidden');
 }
 
 function closeModal() {
-    document.getElementById('modal-root').classList.add('hidden');
+    const modalRoot = document.getElementById('modal-root');
+    if(modalRoot) modalRoot.classList.add('hidden');
 }
 
 async function createNewRoom() {
-    const kind = document.getElementById('new-room-kind').value;
-    const name = document.getElementById('new-room-name').value;
+    const kindSelect = document.getElementById('new-room-kind');
+    const nameInput = document.getElementById('new-room-name');
+    
+    if(!kindSelect || !nameInput) return;
+
+    const kind = kindSelect.value;
+    const name = nameInput.value.trim();
+    
     if(!name) return alert("Введите название");
 
-    const { data, error } = await supabase.from('xsoc_rooms').insert([{
-        kind: kind,
-        name: name,
-        creator_id: currentUserProfile.id,
-        is_public: kind === 'channel_pub'
-    }]).select().single();
+    try {
+        const { data, error } = await sb.from('xsoc_rooms').insert([{
+            kind: kind,
+            name: name,
+            creator_id: currentUserProfile.id,
+            is_public: kind === 'channel_pub'
+        }]).select().single();
 
-    if(error) { alert(error.message); return; }
-    
-    closeModal();
-    fetchAndRenderChats();
+        if(error) throw error;
+        
+        closeModal();
+        fetchAndRenderChats();
+    } catch (err) {
+        console.error("Create Room Error:", err);
+        alert("Ошибка создания комнаты");
+    }
 }
