@@ -1,42 +1,39 @@
 // ==========================================
-// Xsocium App Logic (Guaranteed Fix)
+// Xsocium App Logic (Final Stable Version)
 // ==========================================
 
-// --- CONFIGURATION ---
-// ВСТАВЬ СВОИ ДАННЫЕ ЗДЕСЬ!
+// --- CONFIGURATION (REAL KEYS) ---
 const SUPABASE_URL = 'https://epklfzbvlqzarptpwsdn.supabase.co'; 
 const SUPABASE_ANON_KEY = 'sb_publishable_aa5ojwVrZ7pfLE0ec0DV5w_p3Zk2fcn'; 
 
-// Глобальные переменные
-let sb = null; // Сюда положим клиента
-let currentUserProfile = null;
-let activeRoomId = null;
-let currentChannelSubscription = null;
+// Глобальные переменные состояния
+let sb = null; // Клиент Supabase
+let currentUserProfile = null; // Данные текущего пользователя
+let activeRoomId = null; // ID открытого чата
+let currentChannelSubscription = null; // Подписка на Realtime
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("Xsocium Starting...");
 
-    // 1. Жесткая проверка загрузки библиотеки
+    // 1. Проверка загрузки библиотеки
     if (typeof window.supabase === 'undefined') {
-        console.error("CRITICAL: Supabase library NOT loaded!");
-        alert("Ошибка сети: Библиотека Supabase не загрузилась. Попробуйте открыть сайт в режиме Инкогнито.");
+        alert("Ошибка: Библиотека Supabase не загрузилась. Попробуйте режим Инкогнито.");
         return;
     }
 
     try {
-        // 2. Создаем клиент ПРАВИЛЬНО (через точку!)
-        // Именно здесь была ошибка раньше. Мы используем глобальный объект supabase.createClient
+        // 2. Инициализация клиента
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log("Supabase Client Created Successfully.");
+        console.log("Supabase Client Initialized.");
         
-        // 3. Запускаем логику только если клиент создан
+        // 3. Запуск логики
         setupEventListeners();
         await checkSession();
 
     } catch (error) {
-        console.error("Initialization Error:", error);
-        alert("Не удалось инициализировать базу данных: " + error.message);
+        console.error("Init Error:", error);
+        alert("Критическая ошибка инициализации: " + error.message);
     }
 });
 
@@ -51,14 +48,14 @@ function setupEventListeners() {
         btnReg.onclick = () => switchAuthTab('register');
     }
 
-    // Обработчики форм
+    // Формы входа/регистрации
     const formLogin = document.getElementById('form-login');
     const formRegister = document.getElementById('form-register');
 
     if(formLogin) formLogin.onsubmit = handleLogin;
     if(formRegister) formRegister.onsubmit = handleRegister;
     
-    // Навигация внизу
+    // Нижняя навигация
     document.querySelectorAll('.nav-item').forEach(btn => {
         btn.onclick = (e) => {
             e.preventDefault();
@@ -66,33 +63,27 @@ function setupEventListeners() {
             if(tabId) switchMainTab(tabId);
         };
     });
-}
 
-// ... (далее идет твой обычный код: switchAuthTab, handleLogin, etc.)
-// ВАЖНО: Во всех остальных функциях (handleLogin, fetchChats и т.д.) 
-// ты должен использовать переменную `sb`, а не вызывать createClient заново.
-// Например: await sb.auth.signInWithPassword(...)
-
-    // 4. Search Inputs
+    // Поиск
     const globalSearch = document.getElementById('global-search');
     const contactSearch = document.getElementById('contact-search');
     
-    if(globalSearch) globalSearch.addEventListener('input', debounce(() => fetchAndRenderChats(globalSearch.value), 300));
-    if(contactSearch) contactSearch.addEventListener('input', debounce(() => fetchAndRenderContacts(contactSearch.value), 300));
+    if(globalSearch) globalSearch.oninput = debounce(() => fetchAndRenderChats(globalSearch.value), 300);
+    if(contactSearch) contactSearch.oninput = debounce(() => fetchAndRenderContacts(contactSearch.value), 300);
 
-    // 5. File Uploads
+    // Загрузка файлов
     const avatarUpload = document.getElementById('avatar-upload');
     const fileUpload = document.getElementById('file-upload');
     
-    if(avatarUpload) avatarUpload.addEventListener('change', uploadAvatar);
-    if(fileUpload) fileUpload.addEventListener('change', uploadMediaMessage);
+    if(avatarUpload) avatarUpload.onchange = uploadAvatar;
+    if(fileUpload) fileUpload.onchange = uploadMediaMessage;
 
-    // 6. Settings Controls
+    // Настройки темы
     const darkToggle = document.getElementById('dark-mode-toggle');
     const themeSelect = document.getElementById('theme-color-select');
     
-    if(darkToggle) darkToggle.addEventListener('change', toggleDarkMode);
-    if(themeSelect) themeSelect.addEventListener('change', changeThemeColor);
+    if(darkToggle) darkToggle.onchange = toggleDarkMode;
+    if(themeSelect) themeSelect.onchange = changeThemeColor;
 }
 
 // --- AUTH LOGIC ---
@@ -110,7 +101,7 @@ async function checkSession() {
             showView('view-auth');
         }
 
-        // Listen for future auth state changes
+        // Слушаем изменения статуса авторизации
         sb.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_OUT') {
                 location.reload();
@@ -118,7 +109,7 @@ async function checkSession() {
         });
 
     } catch (err) {
-        console.error("Session check failed:", err);
+        console.error("Session Check Failed:", err);
         showView('view-auth');
     }
 }
@@ -134,11 +125,8 @@ function switchAuthTab(tabName) {
     const registerForm = document.getElementById('form-register');
     const tabs = document.querySelectorAll('.tab-btn');
     
-    // Reset visibility
     if(loginForm) loginForm.classList.add('hidden');
     if(registerForm) registerForm.classList.add('hidden');
-    
-    // Reset active states
     tabs.forEach(t => t.classList.remove('active'));
 
     if (tabName === 'login') {
@@ -169,8 +157,7 @@ async function handleLogin(e) {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
         
-        // Success handled by onAuthStateChange or manual reload logic below
-        // But let's force profile load immediately for better UX
+        // Принудительно обновляем профиль после успешного входа
         const { data: { session } } = await sb.auth.getSession();
         if(session) await loadUserProfile(session.user.id);
         
@@ -183,7 +170,7 @@ async function handleLogin(e) {
 async function handleRegister(e) {
     e.preventDefault();
     const inputs = e.target.querySelectorAll('input');
-    // Order: Username, Email, Password
+    // Порядок инпутов в HTML регистрации: Username, Email, Password
     const username = inputs[0]?.value.trim();
     const email = inputs[1]?.value.trim();
     const password = inputs[2]?.value;
@@ -194,22 +181,20 @@ async function handleRegister(e) {
     }
 
     try {
-        // 1. Sign up in Auth
+        // 1. Регистрация в Auth
         const { data, error } = await sb.auth.signUp({
             email,
             password,
-            options: {
-                data: { username: username }
-            }
+            options: { data: { username } }
         });
         
         if (error) throw error;
 
-        // 2. Create Profile in Database
+        // 2. Создание профиля в БД
         if(data.user) {
             await createInitialProfile(data.user.id, username);
             
-            // Auto Login after registration
+            // 3. Автоматический вход
             const { error: signInError } = await sb.auth.signInWithPassword({ email, password });
             if (!signInError) {
                  const { data: { session } } = await sb.auth.getSession();
@@ -225,6 +210,10 @@ async function handleRegister(e) {
 
 async function createInitialProfile(userId, username) {
     try {
+        // Проверяем, существует ли уже профиль (на случай повторной попытки)
+        const { data: existing } = await sb.from('xsoc_profiles').select('id').eq('id', userId).single();
+        if(existing) return; // Уже есть
+
         const { error } = await sb.from('xsoc_profiles').insert([{
             id: userId,
             username: username,
@@ -236,7 +225,6 @@ async function createInitialProfile(userId, username) {
         if (error) throw error;
     } catch (err) {
         console.error("Profile Creation Failed:", err);
-        // If it fails because user exists, ignore. Otherwise log.
     }
 }
 
@@ -254,7 +242,6 @@ async function loadUserProfile(userId) {
         if (error && error.code !== 'PGRST116') throw error;
         
         if (!data) {
-            // Fallback if profile missing but session valid
             await createInitialProfile(userId, 'User'+Math.floor(Math.random()*1000));
             return loadUserProfile(userId);
         }
@@ -263,7 +250,7 @@ async function loadUserProfile(userId) {
         applyThemeSettings(data);
         renderAppUI(data);
         
-        // Load initial data
+        // Загружаем данные параллельно
         await Promise.all([
             fetchAndRenderChats(),
             fetchAndRenderContacts()
@@ -272,7 +259,7 @@ async function loadUserProfile(userId) {
         showView('view-app');
     } catch (err) {
         console.error("Load Profile Error:", err);
-        alert("Не удалось загрузить профиль. Проверьте консоль.");
+        alert("Не удалось загрузить профиль.");
     } finally {
         if(loader) loader.classList.add('hidden');
     }
@@ -302,14 +289,9 @@ function renderAppUI(profile) {
     if(avatarEl) {
         if(profile.avatar_url) {
             avatarEl.src = profile.avatar_url;
-            avatarEl.alt = "";
+            avatarEl.style.display = 'block';
         } else {
-            // Show first letter fallback
-            avatarEl.src = ''; 
-            avatarEl.alt = profile.username.charAt(0).toUpperCase();
-            avatarEl.style.display = 'none'; // Hide img, show text via CSS pseudo-element or sibling if implemented
-            // For simplicity in this fix, we just leave src empty. 
-            // Ideally, you'd have a div behind the image showing the letter.
+            avatarEl.style.display = 'none'; // Скрываем картинку, показываем букву через CSS или placeholder
         }
     }
 }
@@ -325,37 +307,47 @@ function switchMainTab(tabId) {
     const activeBtn = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
     if(activeBtn) activeBtn.classList.add('active');
     
-    // Refresh data when switching to relevant tabs
     if(tabId === 'tab-chats-list') fetchAndRenderChats();
     if(tabId === 'tab-contacts') fetchAndRenderContacts();
 }
 
-// --- CHAT LOGIC ---
+// --- CHAT LOGIC (FIXED FOR RECURSION) ---
 
 async function fetchAndRenderChats(searchTerm = '') {
     if(!currentUserProfile) return;
 
     try {
-        // Fetch rooms where user is member OR public channels
-        const { data: rooms, error } = await sb
+        // Шаг 1: Получаем список комнат, где мы участник
+        // Используем простой select без join'ов с members внутри rooms, чтобы избежать рекурсии RLS
+        const { data: myRoomsRaw, error: errRooms } = await sb
+            .from('xsoc_members')
+            .select('room_id')
+            .eq('user_id', currentUserProfile.id);
+
+        if (errRooms) throw errRooms;
+
+        if (!myRoomsRaw || myRoomsRaw.length === 0) {
+            document.getElementById('chat-list-ul').innerHTML = '<li style="padding:20px;text-align:center;color:#888;">Нет активных чатов</li>';
+            return;
+        }
+
+        const roomIds = myRoomsRaw.map(r => r.room_id);
+
+        // Шаг 2: Получаем детали этих комнат
+        const { data: roomsDetails, error: errDetails } = await sb
             .from('xsoc_rooms')
-            .select('*, xsoc_members(user_id, role)')
+            .select('*')
+            .in('room_id', roomIds)
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (errDetails) throw errDetails;
 
         const ul = document.getElementById('chat-list-ul');
         if(!ul) return;
         ul.innerHTML = '';
 
-        rooms.forEach(room => {
-            const isMember = room.xsoc_members.some(m => m.user_id === currentUserProfile.id);
-            const isPublicChannel = room.kind === 'channel_pub' && room.is_public;
-            
-            // Security Filter: Only show if member or public channel
-            if (!isMember && !isPublicChannel) return;
-
-            // Search Filter
+        roomsDetails.forEach(room => {
+            // Фильтр поиска
             if (searchTerm && !room.name.toLowerCase().includes(searchTerm.toLowerCase())) return;
 
             const li = document.createElement('li');
@@ -378,6 +370,7 @@ async function fetchAndRenderChats(searchTerm = '') {
 
     } catch (err) {
         console.error("Fetch Chats Error:", err);
+        document.getElementById('chat-list-ul').innerHTML = '<li style="color:red;padding:10px;">Ошибка загрузки чатов</li>';
     }
 }
 
@@ -402,7 +395,6 @@ async function openChatRoom(roomId, name, avatarUrl, kind) {
     if(avatarEl) avatarEl.src = avatarUrl || '';
     if(statusEl) statusEl.textContent = getKindLabel(kind);
     
-    // Switch views
     document.getElementById('tab-chat-view').classList.remove('hidden');
     document.getElementById('tab-chats-list').classList.add('hidden');
     
@@ -419,7 +411,6 @@ async function openChatRoom(roomId, name, avatarUrl, kind) {
         console.error("Load Messages Error:", err);
     }
 
-    // Subscribe to Realtime
     subscribeToRoom(roomId);
 }
 
@@ -431,7 +422,7 @@ function closeActiveChat() {
     }
     document.getElementById('tab-chat-view').classList.add('hidden');
     document.getElementById('tab-chats-list').classList.remove('hidden');
-    fetchAndRenderChats(); // Refresh list
+    fetchAndRenderChats(); 
 }
 
 function renderMessages(messages) {
@@ -466,7 +457,6 @@ function appendMessageDOM(msg) {
 function subscribeToRoom(roomId) {
     if(currentChannelSubscription) sb.removeChannel(currentChannelSubscription);
     
-    // Strict filter ensures we only get messages for THIS room
     currentChannelSubscription = sb.channel(`room_${roomId}`)
         .on('postgres_changes', { 
             event: '*', 
@@ -516,7 +506,6 @@ async function uploadMediaMessage(e) {
     const path = `${currentUserProfile.id}/${Date.now()}.${ext}`;
     
     try {
-        // Upload to Storage Bucket 'xsoc-media'
         const { data, error } = await sb.storage.from('xsoc-media').upload(path, file);
         if(error) throw error;
 
@@ -534,7 +523,7 @@ async function uploadMediaMessage(e) {
             media_type: type
         }]);
         
-        e.target.value = ''; // Reset input
+        e.target.value = ''; 
     } catch (err) {
         console.error("Upload Media Error:", err);
         alert("Ошибка загрузки файла");
@@ -546,25 +535,40 @@ function triggerFileInput() {
     if(input) input.click();
 }
 
-// --- CONTACTS LOGIC ---
+// --- CONTACTS LOGIC (FIXED FOR RELATIONSHIP ERROR) ---
 
 async function fetchAndRenderContacts(searchTerm = '') {
     if(!currentUserProfile) return;
 
     try {
-        const { data: contacts, error } = await sb
+        // Шаг 1: Получаем только ID контактов владельца
+        const { data: contactLinks, error: errLinks } = await sb
             .from('xsoc_contacts')
-            .select('target_id, xsoc_profiles(*)')
+            .select('target_id')
             .eq('owner_id', currentUserProfile.id);
 
-        if (error) throw error;
+        if (errLinks) throw errLinks;
+
+        if (!contactLinks || contactLinks.length === 0) {
+            document.getElementById('contact-list-ul').innerHTML = '<li style="padding:20px;text-align:center;color:#888;">Контактов нет</li>';
+            return;
+        }
+
+        const targetIds = contactLinks.map(c => c.target_id);
+
+        // Шаг 2: Получаем профили этих людей отдельным запросом
+        const { data: profiles, error: errProfiles } = await sb
+            .from('xsoc_profiles')
+            .select('*')
+            .in('id', targetIds);
+
+        if (errProfiles) throw errProfiles;
 
         const ul = document.getElementById('contact-list-ul');
         if(!ul) return;
         ul.innerHTML = '';
 
-        contacts.forEach(c => {
-            const prof = c.xsoc_profiles;
+        profiles.forEach(prof => {
             if(!prof) return;
 
             const searchLower = searchTerm.toLowerCase();
@@ -596,6 +600,7 @@ async function fetchAndRenderContacts(searchTerm = '') {
 
     } catch (err) {
         console.error("Fetch Contacts Error:", err);
+        document.getElementById('contact-list-ul').innerHTML = '<li style="color:red;padding:10px;">Ошибка загрузки контактов</li>';
     }
 }
 
@@ -603,9 +608,6 @@ async function createDM(targetUserId, targetName) {
     if(!currentUserProfile) return;
 
     try {
-        // Check if DM already exists between these two users? 
-        // Simplified: Just create a new one for now. In prod, query existing pairs.
-        
         const { data: newRoom, error } = await sb.from('xsoc_rooms').insert([{
             kind: 'dm',
             name: targetName,
@@ -615,7 +617,6 @@ async function createDM(targetUserId, targetName) {
 
         if(error) throw error;
         
-        // Add both users as members
         await sb.from('xsoc_members').insert([
             { room_id: newRoom.room_id, user_id: currentUserProfile.id, role: 'admin' },
             { room_id: newRoom.room_id, user_id: targetUserId, role: 'member' }
@@ -630,7 +631,6 @@ async function createDM(targetUserId, targetName) {
 }
 
 function startCall(receiverId, receiverName) {
-    // Simulation of call logging
     alert(`Звонок ${receiverName}...\n(WebRTC signaling would go here)`);
     sb.from('xsoc_calls_log').insert([{
         caller_id: currentUserProfile.id,
@@ -695,8 +695,6 @@ function logout() {
 
 function deleteAccountConfirm() {
     if(confirm("Вы уверены? Все данные будут удалены навсегда.")) {
-        // Note: Deleting auth user usually requires Edge Function for security reasons.
-        // Here we attempt direct deletion which might fail depending on Supabase settings.
         sb.from('xsoc_profiles').delete().eq('id', currentUserProfile.id).then(({error}) => {
             if(error) alert("Ошибка удаления профиля: " + error.message);
             else sb.auth.signOut().then(() => location.reload());
