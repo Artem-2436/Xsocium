@@ -66,8 +66,23 @@ async function checkSession() {
 }
 
 function showView(viewId) {
-    document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
-    document.getElementById(viewId).classList.remove('hidden');
+    console.log("Attempting to switch to view:", viewId);
+    
+    // 1. Скрываем ВСЕ экраны принудительно через style.display = 'none'
+    document.querySelectorAll('.screen').forEach(el => {
+        el.style.display = 'none';
+        el.classList.add('hidden'); // Дублируем для надежности
+    });
+
+    // 2. Показываем нужный экран
+    const target = document.getElementById(viewId);
+    if(target) {
+        target.style.display = 'flex'; // Используем flex, так как у нас колонки
+        target.classList.remove('hidden');
+        console.log("View switched successfully to:", viewId);
+    } else {
+        console.error("Target view element not found!", viewId);
+    }
 }
 
 function switchAuthTab(tabName) {
