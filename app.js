@@ -1,61 +1,36 @@
 // ==========================================
-// Xsocium App Logic (Final Stable Version)
+// Xsocium Final Logic
 // ==========================================
 
-// --- CONFIGURATION (REAL KEYS) ---
 const SUPABASE_URL = 'https://epklfzbvlqzarptpwsdn.supabase.co'; 
 const SUPABASE_ANON_KEY = 'sb_publishable_aa5ojwVrZ7pfLE0ec0DV5w_p3Zk2fcn'; 
 
-// Глобальные переменные состояния
-let sb = null; // Клиент Supabase
-let currentUserProfile = null; // Данные текущего пользователя
-let activeRoomId = null; // ID открытого чата
-let currentChannelSubscription = null; // Подписка на Realtime
+let sb = null;
+let currentUserProfile = null;
+let activeRoomId = null;
+let currentChannelSubscription = null;
 
-// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Xsocium Starting...");
-
-    // 1. Проверка загрузки библиотеки
     if (typeof window.supabase === 'undefined') {
-        alert("Ошибка: Библиотека Supabase не загрузилась. Попробуйте режим Инкогнито.");
+        alert("Ошибка: Библиотека Supabase не загрузилась.");
         return;
     }
-
-    try {
-        // 2. Инициализация клиента
-        sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log("Supabase Client Initialized.");
-        
-        // 3. Запуск логики
-        setupEventListeners();
-        await checkSession();
-
-    } catch (error) {
-        console.error("Init Error:", error);
-        alert("Критическая ошибка инициализации: " + error.message);
-    }
+    
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    setupEventListeners();
+    await checkSession();
 });
 
-// --- EVENT LISTENERS SETUP ---
 function setupEventListeners() {
-    // Переключение табов Авторизации
-    const btnLogin = document.querySelector('.tab-btn:nth-child(1)');
-    const btnReg = document.querySelector('.tab-btn:nth-child(2)');
+    // Auth Tabs
+    document.getElementById('tab-login-btn').onclick = () => switchAuthTab('login');
+    document.getElementById('tab-reg-btn').onclick = () => switchAuthTab('register');
     
-    if(btnLogin && btnReg) {
-        btnLogin.onclick = () => switchAuthTab('login');
-        btnReg.onclick = () => switchAuthTab('register');
-    }
-
-    // Формы входа/регистрации
-    const formLogin = document.getElementById('form-login');
-    const formRegister = document.getElementById('form-register');
-
-    if(formLogin) formLogin.onsubmit = handleLogin;
-    if(formRegister) formRegister.onsubmit = handleRegister;
+    // Forms
+    document.getElementById('form-login').onsubmit = handleLogin;
+    document.getElementById('form-register').onsubmit = handleRegister;
     
-    // Нижняя навигация
+    // Navigation
     document.querySelectorAll('.nav-item').forEach(btn => {
         btn.onclick = (e) => {
             e.preventDefault();
@@ -64,183 +39,107 @@ function setupEventListeners() {
         };
     });
 
-    // Поиск
-    const globalSearch = document.getElementById('global-search');
-    const contactSearch = document.getElementById('contact-search');
-    
-    if(globalSearch) globalSearch.oninput = debounce(() => fetchAndRenderChats(globalSearch.value), 300);
-    if(contactSearch) contactSearch.oninput = debounce(() => fetchAndRenderContacts(contactSearch.value), 300);
+    // Search
+    document.getElementById('global-search').oninput = debounce(() => fetchAndRenderChats(document.getElementById('global-search').value), 300);
+    document.getElementById('contact-search').oninput = debounce(() => fetchAndRenderContacts(document.getElementById('contact-search').value), 300);
 
-    // Загрузка файлов
-    const avatarUpload = document.getElementById('avatar-upload');
-    const fileUpload = document.getElementById('file-upload');
-    
-    if(avatarUpload) avatarUpload.onchange = uploadAvatar;
-    if(fileUpload) fileUpload.onchange = uploadMediaMessage;
-
-    // Настройки темы
-    const darkToggle = document.getElementById('dark-mode-toggle');
-    const themeSelect = document.getElementById('theme-color-select');
-    
-    if(darkToggle) darkToggle.onchange = toggleDarkMode;
-    if(themeSelect) themeSelect.onchange = changeThemeColor;
+    // Files & Settings
+    document.getElementById('avatar-upload').onchange = uploadAvatar;
+    document.getElementById('file-upload').onchange = uploadMediaMessage;
+    document.getElementById('dark-mode-toggle').onchange = toggleDarkMode;
+    document.getElementById('theme-color-select').onchange = changeThemeColor;
 }
 
 // --- AUTH LOGIC ---
 
 async function checkSession() {
-    try {
-        const { data: { session }, error } = await sb.auth.getSession();
-        
-        if (error) throw error;
-
-        if (session) {
-            console.log("User logged in:", session.user.email);
-            await loadUserProfile(session.user.id);
-        } else {
-            showView('view-auth');
-        }
-
-        // Слушаем изменения статуса авторизации
-        sb.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_OUT') {
-                location.reload();
-            }
-        });
-
-    } catch (err) {
-        console.error("Session Check Failed:", err);
+    const { data: { session }, error } = await sb.auth.getSession();
+    if (session) {
+        await loadUserProfile(session.user.id);
+    } else {
         showView('view-auth');
     }
+    
+    sb.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT') location.reload();
+    });
 }
 
 function showView(viewId) {
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
-    const target = document.getElementById(viewId);
-    if(target) target.classList.remove('hidden');
+    document.getElementById(viewId).classList.remove('hidden');
 }
 
 function switchAuthTab(tabName) {
     const loginForm = document.getElementById('form-login');
-    const registerForm = document.getElementById('form-register');
+    const regForm = document.getElementById('form-register');
     const tabs = document.querySelectorAll('.tab-btn');
     
-    // Сброс стилей табов
     tabs.forEach(t => t.classList.remove('active'));
 
     if (tabName === 'login') {
-        // Показываем логин, скрываем регистрацию
-        if(loginForm) loginForm.classList.remove('hidden');
-        if(registerForm) registerForm.classList.add('hidden');
-        if(tabs[0]) tabs[0].classList.add('active');
+        loginForm.style.display = 'flex';
+        regForm.style.display = 'none';
+        document.getElementById('tab-login-btn').classList.add('active');
     } else {
-        // Показываем регистрацию, скрываем логин
-        if(loginForm) loginForm.classList.add('hidden');
-        if(registerForm) registerForm.classList.remove('hidden');
-        if(tabs[1]) tabs[1].classList.add('active');
+        loginForm.style.display = 'none';
+        regForm.style.display = 'flex';
+        document.getElementById('tab-reg-btn').classList.add('active');
     }
 }
+
 async function handleLogin(e) {
     e.preventDefault();
-    const emailInput = e.target.querySelector('input[type="email"]');
-    const passInput = e.target.querySelector('input[type="password"]');
+    const email = e.target.querySelector('input[type="email"]').value;
+    const pass = e.target.querySelector('input[type="password"]').value;
     
-    if(!emailInput || !passInput) return;
-
-    const email = emailInput.value.trim();
-    const password = passInput.value;
-
-    if(!email || !password) {
-        alert("Заполните все поля");
-        return;
-    }
-
     try {
-        const { error } = await sb.auth.signInWithPassword({ email, password });
+        const { error } = await sb.auth.signInWithPassword({ email, password: pass });
         if (error) throw error;
         
-        // Принудительно обновляем профиль после успешного входа
         const { data: { session } } = await sb.auth.getSession();
         if(session) await loadUserProfile(session.user.id);
-        
     } catch (err) {
-        console.error("Login Error:", err);
-        alert("Ошибка входа: " + err.message);
+        alert(err.message);
     }
 }
 
 async function handleRegister(e) {
     e.preventDefault();
     const inputs = e.target.querySelectorAll('input');
-    // Порядок инпутов в HTML регистрации: Username, Email, Password
-    const username = inputs[0]?.value.trim();
-    const email = inputs[1]?.value.trim();
-    const password = inputs[2]?.value;
-
-    if(!username || !email || !password) {
-        alert("Заполните все поля");
-        return;
-    }
+    const username = inputs[0].value.trim();
+    const email = inputs[1].value.trim();
+    const password = inputs[2].value;
 
     try {
-        // 1. Регистрация в Auth
-        const { data, error } = await sb.auth.signUp({
-            email,
-            password,
-            options: { data: { username } }
-        });
-        
+        const { data, error } = await sb.auth.signUp({ email, password, options: { data: { username } } });
         if (error) throw error;
-
-        // 2. Создание профиля в БД
+        
         if(data.user) {
             await createInitialProfile(data.user.id, username);
-            
-            // 3. Автоматический вход
-            const { error: signInError } = await sb.auth.signInWithPassword({ email, password });
-            if (!signInError) {
-                 const { data: { session } } = await sb.auth.getSession();
-                 if(session) await loadUserProfile(session.user.id);
-            }
+            // Auto login
+            await sb.auth.signInWithPassword({ email, password });
+            const { data: { session } } = await sb.auth.getSession();
+            if(session) await loadUserProfile(session.user.id);
         }
-
     } catch (err) {
-        console.error("Registration Error:", err);
-        alert("Ошибка регистрации: " + err.message);
+        alert(err.message);
     }
 }
 
 async function createInitialProfile(userId, username) {
-    try {
-        // Проверяем, существует ли уже профиль (на случай повторной попытки)
-        const { data: existing } = await sb.from('xsoc_profiles').select('id').eq('id', userId).single();
-        if(existing) return; // Уже есть
-
-        const { error } = await sb.from('xsoc_profiles').insert([{
-            id: userId,
-            username: username,
-            full_name: username,
-            phone_number: null,
-            theme_color: '#007bff',
-            is_dark_mode: false
-        }]);
-        if (error) throw error;
-    } catch (err) {
-        console.error("Profile Creation Failed:", err);
-    }
+    const { error } = await sb.from('xsoc_profiles').insert([{
+        id: userId, username, full_name: username, phone_number: null, theme_color: '#007bff', is_dark_mode: false
+    }]);
+    if(error) console.error("Profile Insert Error:", error);
 }
 
 async function loadUserProfile(userId) {
     const loader = document.getElementById('loader-profile');
-    if(loader) loader.classList.remove('hidden');
+    loader.classList.remove('hidden');
     
     try {
-        const { data, error } = await sb
-            .from('xsoc_profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
-
+        const { data, error } = await sb.from('xsoc_profiles').select('*').eq('id', userId).single();
         if (error && error.code !== 'PGRST116') throw error;
         
         if (!data) {
@@ -252,104 +151,67 @@ async function loadUserProfile(userId) {
         applyThemeSettings(data);
         renderAppUI(data);
         
-        // Загружаем данные параллельно
-        await Promise.all([
-            fetchAndRenderChats(),
-            fetchAndRenderContacts()
-        ]);
-        
+        await Promise.all([fetchAndRenderChats(), fetchAndRenderContacts()]);
         showView('view-app');
     } catch (err) {
-        console.error("Load Profile Error:", err);
-        alert("Не удалось загрузить профиль.");
+        alert("Ошибка профиля");
     } finally {
-        if(loader) loader.classList.add('hidden');
+        loader.classList.add('hidden');
     }
 }
 
 function applyThemeSettings(profile) {
     if (profile.is_dark_mode) document.body.classList.add('dark-theme');
     else document.body.classList.remove('dark-theme');
-    
     document.documentElement.style.setProperty('--primary', profile.theme_color);
-    
-    const darkToggle = document.getElementById('dark-mode-toggle');
-    const themeSelect = document.getElementById('theme-color-select');
-    
-    if(darkToggle) darkToggle.checked = profile.is_dark_mode;
-    if(themeSelect) themeSelect.value = profile.theme_color;
+    document.getElementById('dark-mode-toggle').checked = profile.is_dark_mode;
+    document.getElementById('theme-color-select').value = profile.theme_color;
 }
 
 function renderAppUI(profile) {
-    const nameEl = document.getElementById('my-fullname');
-    const phoneEl = document.getElementById('my-phone');
-    const avatarEl = document.getElementById('my-avatar-img');
-    
-    if(nameEl) nameEl.textContent = profile.full_name || profile.username;
-    if(phoneEl) phoneEl.textContent = profile.phone_number || 'Не указан';
-    
-    if(avatarEl) {
-        if(profile.avatar_url) {
-            avatarEl.src = profile.avatar_url;
-            avatarEl.style.display = 'block';
-        } else {
-            avatarEl.style.display = 'none'; // Скрываем картинку, показываем букву через CSS или placeholder
-        }
-    }
+    document.getElementById('my-fullname').textContent = profile.full_name || profile.username;
+    document.getElementById('my-phone').textContent = profile.phone_number || 'Не указан';
+    if(profile.avatar_url) document.getElementById('my-avatar-img').src = profile.avatar_url;
 }
 
-// --- NAVIGATION & TABS ---
+// --- NAVIGATION ---
 
 function switchMainTab(tabId) {
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-    const targetPane = document.getElementById(tabId);
-    if(targetPane) targetPane.classList.remove('hidden');
+    document.getElementById(tabId).classList.remove('hidden');
     
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    const activeBtn = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
-    if(activeBtn) activeBtn.classList.add('active');
+    document.querySelector(`.nav-item[data-tab="${tabId}"]`).classList.add('active');
     
     if(tabId === 'tab-chats-list') fetchAndRenderChats();
     if(tabId === 'tab-contacts') fetchAndRenderContacts();
 }
 
-// --- CHAT LOGIC (FIXED FOR RECURSION) ---
+// --- CHAT LOGIC (SIMPLE QUERIES) ---
 
 async function fetchAndRenderChats(searchTerm = '') {
     if(!currentUserProfile) return;
+    const ul = document.getElementById('chat-list-ul');
+    ul.innerHTML = '<li class="empty-msg">Загрузка...</li>';
 
     try {
-        // Шаг 1: Получаем список комнат, где мы участник
-        // Используем простой select без join'ов с members внутри rooms, чтобы избежать рекурсии RLS
-        const { data: myRoomsRaw, error: errRooms } = await sb
-            .from('xsoc_members')
-            .select('room_id')
-            .eq('user_id', currentUserProfile.id);
-
+        // 1. Get my room IDs
+        const { data: myRoomsRaw, error: errRooms } = await sb.from('xsoc_members').select('room_id').eq('user_id', currentUserProfile.id);
         if (errRooms) throw errRooms;
-
+        
         if (!myRoomsRaw || myRoomsRaw.length === 0) {
-            document.getElementById('chat-list-ul').innerHTML = '<li style="padding:20px;text-align:center;color:#888;">Нет активных чатов</li>';
+            ul.innerHTML = '<li class="empty-msg">Нет активных чатов</li>';
             return;
         }
 
         const roomIds = myRoomsRaw.map(r => r.room_id);
 
-        // Шаг 2: Получаем детали этих комнат
-        const { data: roomsDetails, error: errDetails } = await sb
-            .from('xsoc_rooms')
-            .select('*')
-            .in('room_id', roomIds)
-            .order('created_at', { ascending: false });
-
+        // 2. Get Room Details
+        const { data: roomsDetails, error: errDetails } = await sb.from('xsoc_rooms').select('*').in('room_id', roomIds).order('created_at', { ascending: false });
         if (errDetails) throw errDetails;
 
-        const ul = document.getElementById('chat-list-ul');
-        if(!ul) return;
         ul.innerHTML = '';
-
         roomsDetails.forEach(room => {
-            // Фильтр поиска
             if (searchTerm && !room.name.toLowerCase().includes(searchTerm.toLowerCase())) return;
 
             const li = document.createElement('li');
@@ -372,7 +234,7 @@ async function fetchAndRenderChats(searchTerm = '') {
 
     } catch (err) {
         console.error("Fetch Chats Error:", err);
-        document.getElementById('chat-list-ul').innerHTML = '<li style="color:red;padding:10px;">Ошибка загрузки чатов</li>';
+        ul.innerHTML = `<li class="empty-msg" style="color:red;">Ошибка: ${err.message}</li>`;
     }
 }
 
@@ -381,47 +243,30 @@ function getKindLabel(kind) {
         case 'dm': return 'Личный чат';
         case 'group': return 'Группа';
         case 'channel_pub': return 'Публичный канал';
-        case 'channel_priv': return 'Закрытый канал';
         default: return '';
     }
 }
 
 async function openChatRoom(roomId, name, avatarUrl, kind) {
     activeRoomId = roomId;
-    
-    const nameEl = document.getElementById('active-chat-name');
-    const avatarEl = document.getElementById('active-chat-avatar');
-    const statusEl = document.getElementById('active-chat-status');
-    
-    if(nameEl) nameEl.textContent = name;
-    if(avatarEl) avatarEl.src = avatarUrl || '';
-    if(statusEl) statusEl.textContent = getKindLabel(kind);
+    document.getElementById('active-chat-name').textContent = name;
+    document.getElementById('active-chat-avatar').src = avatarUrl || '';
+    document.getElementById('active-chat-status').textContent = getKindLabel(kind);
     
     document.getElementById('tab-chat-view').classList.remove('hidden');
     document.getElementById('tab-chats-list').classList.add('hidden');
     
     // Load History
-    try {
-        const { data: msgs, error } = await sb
-            .from('xsoc_messages')
-            .select('*')
-            .eq('room_id', roomId)
-            .order('sent_at', { ascending: true });
-            
-        if(msgs) renderMessages(msgs);
-    } catch(err) {
-        console.error("Load Messages Error:", err);
-    }
+    const { data: msgs, error } = await sb.from('xsoc_messages').select('*').eq('room_id', roomId).order('sent_at', { ascending: true });
+    if(msgs) renderMessages(msgs);
+    else renderMessages([]); // Clear old messages
 
     subscribeToRoom(roomId);
 }
 
 function closeActiveChat() {
     activeRoomId = null;
-    if(currentChannelSubscription) {
-        sb.removeChannel(currentChannelSubscription);
-        currentChannelSubscription = null;
-    }
+    if(currentChannelSubscription) sb.removeChannel(currentChannelSubscription);
     document.getElementById('tab-chat-view').classList.add('hidden');
     document.getElementById('tab-chats-list').classList.remove('hidden');
     fetchAndRenderChats(); 
@@ -429,7 +274,6 @@ function closeActiveChat() {
 
 function renderMessages(messages) {
     const container = document.getElementById('messages-container');
-    if(!container) return;
     container.innerHTML = '';
     messages.forEach(msg => appendMessageDOM(msg));
     container.scrollTop = container.scrollHeight;
@@ -437,11 +281,9 @@ function renderMessages(messages) {
 
 function appendMessageDOM(msg) {
     const container = document.getElementById('messages-container');
-    if(!container) return;
-    
     const div = document.createElement('div');
     const isMine = msg.sender_id === currentUserProfile.id;
-    div.className = `msg-bubble ${isMine ? 'msg-mine' : ''}`;
+    div.className = `msg-bubble ${isMine ? 'msg-mine' : 'msg-other'}`;
     
     let contentHtml = '';
     if (msg.media_type === 'image') contentHtml = `<img src="${msg.content}" style="max-width:100%; border-radius:10px;">`;
@@ -450,7 +292,6 @@ function appendMessageDOM(msg) {
     else contentHtml = escapeHtml(msg.content);
 
     const timeStr = new Date(msg.sent_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    
     div.innerHTML = `${contentHtml}<br><small style="opacity:0.7; font-size:0.7rem;">${timeStr}</small>`;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
@@ -458,45 +299,27 @@ function appendMessageDOM(msg) {
 
 function subscribeToRoom(roomId) {
     if(currentChannelSubscription) sb.removeChannel(currentChannelSubscription);
-    
     currentChannelSubscription = sb.channel(`room_${roomId}`)
-        .on('postgres_changes', { 
-            event: '*', 
-            schema: 'public', 
-            table: 'xsoc_messages',
-            filter: `room_id=eq.${roomId}` 
-        }, payload => {
-            if(payload.eventType === 'INSERT') {
-                appendMessageDOM(payload.new);
-            }
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'xsoc_messages', filter: `room_id=eq.${roomId}` }, payload => {
+            if(payload.eventType === 'INSERT') appendMessageDOM(payload.new);
         })
-        .subscribe(status => {
-            if(status === 'SUBSCRIBED') console.log('Realtime connected:', roomId);
-        });
+        .subscribe();
 }
 
 async function sendMessage() {
     if(!activeRoomId || !currentUserProfile) return;
-    
     const textarea = document.getElementById('msg-textarea');
-    if(!textarea) return;
-    
     const text = textarea.value.trim();
     if(!text) return;
 
     try {
         const { error } = await sb.from('xsoc_messages').insert([{
-            room_id: activeRoomId,
-            sender_id: currentUserProfile.id,
-            content: text,
-            media_type: 'text'
+            room_id: activeRoomId, sender_id: currentUserProfile.id, content: text, media_type: 'text'
         }]);
-
         if(error) throw error;
         textarea.value = '';
     } catch (err) {
-        console.error("Send Message Error:", err);
-        alert("Ошибка отправки сообщения");
+        alert("Ошибка отправки");
     }
 }
 
@@ -519,69 +342,44 @@ async function uploadMediaMessage(e) {
         if(file.type.startsWith('audio')) type = 'audio';
 
         await sb.from('xsoc_messages').insert([{
-            room_id: activeRoomId,
-            sender_id: currentUserProfile.id,
-            content: publicUrl,
-            media_type: type
+            room_id: activeRoomId, sender_id: currentUserProfile.id, content: publicUrl, media_type: type
         }]);
-        
         e.target.value = ''; 
     } catch (err) {
-        console.error("Upload Media Error:", err);
-        alert("Ошибка загрузки файла");
+        alert("Ошибка загрузки");
     }
 }
 
-function triggerFileInput() {
-    const input = document.getElementById('file-upload');
-    if(input) input.click();
-}
-
-// --- CONTACTS LOGIC (FIXED FOR RELATIONSHIP ERROR) ---
+// --- CONTACTS LOGIC (SIMPLE QUERIES) ---
 
 async function fetchAndRenderContacts(searchTerm = '') {
     if(!currentUserProfile) return;
+    const ul = document.getElementById('contact-list-ul');
+    ul.innerHTML = '<li class="empty-msg">Загрузка...</li>';
 
     try {
-        // Шаг 1: Получаем только ID контактов владельца
-        const { data: contactLinks, error: errLinks } = await sb
-            .from('xsoc_contacts')
-            .select('target_id')
-            .eq('owner_id', currentUserProfile.id);
-
+        // 1. Get Contact IDs
+        const { data: contactLinks, error: errLinks } = await sb.from('xsoc_contacts').select('target_id').eq('owner_id', currentUserProfile.id);
         if (errLinks) throw errLinks;
 
         if (!contactLinks || contactLinks.length === 0) {
-            document.getElementById('contact-list-ul').innerHTML = '<li style="padding:20px;text-align:center;color:#888;">Контактов нет</li>';
+            ul.innerHTML = '<li class="empty-msg">Нет контактов</li>';
             return;
         }
 
         const targetIds = contactLinks.map(c => c.target_id);
 
-        // Шаг 2: Получаем профили этих людей отдельным запросом
-        const { data: profiles, error: errProfiles } = await sb
-            .from('xsoc_profiles')
-            .select('*')
-            .in('id', targetIds);
-
+        // 2. Get Profiles
+        const { data: profiles, error: errProfiles } = await sb.from('xsoc_profiles').select('*').in('id', targetIds);
         if (errProfiles) throw errProfiles;
 
-        const ul = document.getElementById('contact-list-ul');
-        if(!ul) return;
         ul.innerHTML = '';
-
         profiles.forEach(prof => {
             if(!prof) return;
-
-            const searchLower = searchTerm.toLowerCase();
-            const nameMatch = prof.full_name?.toLowerCase().includes(searchLower);
-            const userMatch = prof.username?.toLowerCase().includes(searchLower);
-            
-            if(searchTerm && !nameMatch && !userMatch) return;
+            if(searchTerm && !prof.full_name?.toLowerCase().includes(searchTerm.toLowerCase())) return;
 
             const li = document.createElement('li');
             li.className = 'list-item';
-            
             const avatarContent = prof.avatar_url 
                 ? `<img src="${prof.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` 
                 : prof.username.charAt(0).toUpperCase();
@@ -602,43 +400,29 @@ async function fetchAndRenderContacts(searchTerm = '') {
 
     } catch (err) {
         console.error("Fetch Contacts Error:", err);
-        document.getElementById('contact-list-ul').innerHTML = '<li style="color:red;padding:10px;">Ошибка загрузки контактов</li>';
+        ul.innerHTML = `<li class="empty-msg" style="color:red;">Ошибка: ${err.message}</li>`;
     }
 }
 
 async function createDM(targetUserId, targetName) {
     if(!currentUserProfile) return;
-
     try {
         const { data: newRoom, error } = await sb.from('xsoc_rooms').insert([{
-            kind: 'dm',
-            name: targetName,
-            creator_id: currentUserProfile.id,
-            is_public: false
+            kind: 'dm', name: targetName, creator_id: currentUserProfile.id, is_public: false
         }]).select().single();
-
         if(error) throw error;
         
         await sb.from('xsoc_members').insert([
             { room_id: newRoom.room_id, user_id: currentUserProfile.id, role: 'admin' },
             { room_id: newRoom.room_id, user_id: targetUserId, role: 'member' }
         ]);
-        
         openChatRoom(newRoom.room_id, targetName, '', 'dm');
-        
-    } catch (err) {
-        console.error("Create DM Error:", err);
-        alert("Ошибка создания чата");
-    }
+    } catch (err) { alert(err.message); }
 }
 
 function startCall(receiverId, receiverName) {
-    alert(`Звонок ${receiverName}...\n(WebRTC signaling would go here)`);
-    sb.from('xsoc_calls_log').insert([{
-        caller_id: currentUserProfile.id,
-        receiver_id: receiverId,
-        status: 'missed'
-    }]).catch(console.error);
+    alert(`Звонок ${receiverName}...`);
+    sb.from('xsoc_calls_log').insert([{ caller_id: currentUserProfile.id, receiver_id: receiverId, status: 'missed' }]);
 }
 
 // --- SETTINGS & UTILS ---
@@ -657,69 +441,47 @@ function changeThemeColor(e) {
 
 async function updateProfileField(field, value) {
     if(!currentUserProfile) return;
-    try {
-        await sb.from('xsoc_profiles').update({ [field]: value }).eq('id', currentUserProfile.id);
-    } catch (err) {
-        console.error("Update Profile Field Error:", err);
-    }
+    await sb.from('xsoc_profiles').update({ [field]: value }).eq('id', currentUserProfile.id);
 }
 
 async function uploadAvatar(e) {
     const file = e.target.files[0];
     if(!file || !currentUserProfile) return;
-    
     const path = `avatars/${currentUserProfile.id}.jpg`;
-    
     try {
-        const { data, error } = await sb.storage.from('xsoc-media').upload(path, file, { cacheControl: '3600', upsert: true });
+        const { data, error } = await sb.storage.from('xsoc-media').upload(path, file, { upsert: true });
         if(error) throw error;
-
-        const urlResult = sb.storage.from('xsoc-media').getPublicUrl(path);
-        const url = urlResult.data.publicUrl;
-        
+        const url = sb.storage.from('xsoc-media').getPublicUrl(path).data.publicUrl;
         await updateProfileField('avatar_url', url);
-        currentUserProfile.avatar_url = url;
-        
-        const imgEl = document.getElementById('my-avatar-img');
-        if(imgEl) imgEl.src = url;
-        
-    } catch (err) {
-        console.error("Avatar Upload Error:", err);
-        alert("Ошибка загрузки аватарки");
-    }
+        document.getElementById('my-avatar-img').src = url;
+    } catch (err) { alert(err.message); }
 }
 
-function logout() {
-    sb.auth.signOut().then(() => {
-        location.reload();
-    });
+function logout() { sb.auth.signOut().then(() => location.reload()); }
+
+function openCreateRoomModal() {
+    document.getElementById('modal-root').classList.remove('hidden');
 }
 
-function deleteAccountConfirm() {
-    if(confirm("Вы уверены? Все данные будут удалены навсегда.")) {
-        sb.from('xsoc_profiles').delete().eq('id', currentUserProfile.id).then(({error}) => {
-            if(error) alert("Ошибка удаления профиля: " + error.message);
-            else sb.auth.signOut().then(() => location.reload());
-        });
-    }
+function closeModal() {
+    document.getElementById('modal-root').classList.add('hidden');
 }
 
-function changePasswordPrompt() {
-    const newPass = prompt("Новый пароль:");
-    if(newPass) {
-        sb.auth.updateUser({ password: newPass }).then(({error}) => {
-            if(error) alert(error.message);
-            else alert("Пароль изменен!");
-        });
-    }
+async function createNewRoom() {
+    const kind = document.getElementById('new-room-kind').value;
+    const name = document.getElementById('new-room-name').value.trim();
+    if(!name) return alert("Введите название");
+
+    try {
+        const { data, error } = await sb.from('xsoc_rooms').insert([{
+            kind, name, creator_id: currentUserProfile.id, is_public: kind === 'channel_pub'
+        }]).select().single();
+        if(error) throw error;
+        closeModal();
+        fetchAndRenderChats();
+    } catch (err) { alert(err.message); }
 }
 
-function changePhonePrompt() {
-    const newPhone = prompt("Новый номер телефона:");
-    if(newPhone) updateProfileField('phone_number', newPhone);
-}
-
-// Helper Functions
 function escapeHtml(text) {
     if(!text) return '';
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
@@ -728,65 +490,5 @@ function escapeHtml(text) {
 
 function debounce(func, wait) {
     let timeout;
-    return (...args) => {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-}
-
-function filterChats(e) { fetchAndRenderChats(e.target.value); }
-function filterContacts(e) { fetchAndRenderContacts(e.target.value); }
-
-function openCreateRoomModal() {
-    const modalRoot = document.getElementById('modal-root');
-    if(!modalRoot) return;
-    
-    modalRoot.innerHTML = `
-        <div class="modal-content">
-            <span class="modal-close" onclick="closeModal()">×</span>
-            <h3>Новая комната</h3>
-            <select id="new-room-kind" style="width:100%; padding:10px; margin:10px 0;">
-                <option value="group">Группа</option>
-                <option value="channel_pub">Публичный Канал</option>
-                <option value="channel_priv">Закрытый Канал</option>
-            </select>
-            <input type="text" id="new-room-name" placeholder="Название" style="width:100%; padding:10px; margin-bottom:10px;">
-            <button onclick="createNewRoom()" style="width:100%; padding:10px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer;">Создать</button>
-        </div>
-    `;
-    modalRoot.classList.remove('hidden');
-}
-
-function closeModal() {
-    const modalRoot = document.getElementById('modal-root');
-    if(modalRoot) modalRoot.classList.add('hidden');
-}
-
-async function createNewRoom() {
-    const kindSelect = document.getElementById('new-room-kind');
-    const nameInput = document.getElementById('new-room-name');
-    
-    if(!kindSelect || !nameInput) return;
-
-    const kind = kindSelect.value;
-    const name = nameInput.value.trim();
-    
-    if(!name) return alert("Введите название");
-
-    try {
-        const { data, error } = await sb.from('xsoc_rooms').insert([{
-            kind: kind,
-            name: name,
-            creator_id: currentUserProfile.id,
-            is_public: kind === 'channel_pub'
-        }]).select().single();
-
-        if(error) throw error;
-        
-        closeModal();
-        fetchAndRenderChats();
-    } catch (err) {
-        console.error("Create Room Error:", err);
-        alert("Ошибка создания комнаты");
-    }
+    return (...args) => { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), wait); };
 }
