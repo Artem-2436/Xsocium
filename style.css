@@ -99,3 +99,15 @@ body { background-color: var(--bg-light); color: var(--text-light); height: 100v
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 200; }
 .modal-content { background: var(--bg-light); padding: 20px; border-radius: 15px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
 .modal-close { float: right; cursor: pointer; font-size: 1.5rem; }
+/* Плавное появление/исчезновение форм */
+.auth-form.hidden {
+    opacity: 0;
+    pointer-events: none; /* Отключаем клики, пока форма скрыта */
+    transform: translateY(10px);
+}
+
+.auth-form:not(.hidden) {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
