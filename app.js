@@ -66,23 +66,29 @@ async function checkSession() {
 }
 
 function showView(viewId) {
-    console.log("Attempting to switch to view:", viewId);
+    console.log("Forcing view switch to:", viewId);
     
-    // 1. Скрываем ВСЕ экраны принудительно через style.display = 'none'
+    // 1. Скрываем все экраны жестко
     document.querySelectorAll('.screen').forEach(el => {
         el.style.display = 'none';
-        el.classList.add('hidden'); // Дублируем для надежности
+        el.style.visibility = 'hidden'; // Дополнительно скрываем видимость
     });
 
-    // 2. Показываем нужный экран
     const target = document.getElementById(viewId);
-    if(target) {
-        target.style.display = 'flex'; // Используем flex, так как у нас колонки
-        target.classList.remove('hidden');
-        console.log("View switched successfully to:", viewId);
-    } else {
-        console.error("Target view element not found!", viewId);
+    if (!target) {
+        console.error("Element not found:", viewId);
+        return;
     }
+
+    // 2. Показываем целевой экран
+    target.style.display = 'flex';
+    target.style.visibility = 'visible';
+    
+    // 3. ТРИК ДЛЯ БРАУЗЕРА: Принудительный Reflow
+    // Читаем offsetHeight, чтобы заставить браузер пересчитать геометрию страницы немедленно
+    void target.offsetHeight; 
+
+    console.log("Reflow triggered. View should be visible now.");
 }
 
 function switchAuthTab(tabName) {
