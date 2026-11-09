@@ -27,9 +27,36 @@ body { background-color: var(--bg-light); color: var(--text-main); height: 100vh
 .glass-card, .glass-bar { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
 
 /* Screens Layout */
-.screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; }
-#view-auth { justify-content: center; align-items: center; z-index: 10; }
-#view-app { z-index: 5; }
+/* Экраны по умолчанию скрыты */
+.screen {
+    position: absolute; /* Важно! Чтобы они накладывались друг на друга */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none; /* По умолчанию скрыт */
+    flex-direction: column;
+    background-color: var(--bg-light);
+    z-index: 1; /* Нижний слой */
+}
+
+/* Активный экран поверх остальных */
+.screen.active {
+    display: flex !important; /* Force override */
+    z-index: 10; /* Верхний слой */
+}
+
+/* Специфичные стили для авторизации (центрирование) */
+#view-auth {
+    justify-content: center;
+    align-items: center;
+}
+
+/* Специфичные стили для приложения (колонка) */
+#view-app {
+    justify-content: flex-start;
+    align-items: stretch;
+}
 
 /* Auth Box */
 .auth-box { width: 90%; max-width: 400px; padding: 30px; border-radius: var(--radius-lg); text-align: center; }
